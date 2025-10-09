@@ -138,13 +138,27 @@ class _MCPServerWithClientSession(MCPServer, abc.ABC):
             self.server_initialize_result = server_result
             self.session = session
         except Exception as e:
-            logging.error(f"Error initializing MCP server: {e}")
+            logging.error(
+                f"❌ Failed to initialize MCP server {getattr(self, '_name', 'unknown')}: {e}",
+                exc_info=True,  # include full traceback
+            )
             await self.cleanup()
-            return
+            raise  # 🚨 re-raise so caller sees the failure
         except BaseException as e:
-            logging.error(f"Error initializing MCP server: {e}")
+            logging.error(
+                f"BaseException: ❌ Failed to initialize MCP server {getattr(self, '_name', 'unknown')}: {e}",
+                exc_info=True,  # include full traceback
+            )
             await self.cleanup()
-            return
+            raise  # 🚨 re-raise so caller sees the failure
+        # except Exception as e:
+        #     logging.error(f"Error initializing MCP server: {e}")
+        #     await self.cleanup()
+        #     return
+        # except BaseException as e:
+        #     logging.error(f"Error initializing MCP server: {e}")
+        #     await self.cleanup()
+        #     return
 
     async def list_tools(self) -> list[MCPTool]:
         """List the tools available on the server."""

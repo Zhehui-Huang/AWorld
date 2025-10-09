@@ -101,15 +101,17 @@ class BrowserActionCollection(ActionCollection):
         self._color_log(f"Browser browser_profile: {self.browser_profile}", Color.green)
 
         # Log configuration
+        self._color_log(f"Zhehui: {self.workspace}", Color.blue)
+
         self.trace_log_dir = str(self.workspace / "logs")
         os.makedirs(f"{self.trace_log_dir}/browser_log", exist_ok=True)
 
-        self._color_log("Browser automation service initialized", Color.green)
+        self._color_log("Browser automation service initialized Zhehui", Color.green)
         self._color_log(
             f"Downloads directory: {self.browser_profile.downloads_path}", Color.blue
         )
         self._color_log(
-            f"Trace logs directory: {self.trace_log_dir}/browser_log", Color.blue
+            f"Trace logs zzzz directory: {self.trace_log_dir}/browser_log", Color.blue
         )
 
     def _create_browser_agent(self, task: str) -> Agent:
@@ -359,6 +361,7 @@ class BrowserActionCollection(ActionCollection):
 if __name__ == "__main__":
     load_dotenv()
 
+    print(f"Zhehui Home: {os.getenv("AWORLD_WORKSPACE", "~")}")
     # Default arguments for testing
     args = ActionArguments(
         name="browser_automation_service",

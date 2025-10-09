@@ -141,7 +141,8 @@ async def run(mcp_servers: list[MCPServer],black_tool_actions: Dict[str, List[st
     openai_tools = []
     for i, server in enumerate(mcp_servers):
         try:
-            tools = await server.list_tools()
+            async with server:
+                tools = await server.list_tools()
             for tool in tools:
                 balck_server = server.name
                 if server.name.startswith("mcp__"):

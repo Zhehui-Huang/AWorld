@@ -83,7 +83,7 @@ def setup_logging():
 
 
 if __name__ == "__main__":
-    load_dotenv()
+    load_dotenv(Path(__file__).parent / "cmd/agent_deploy/gaia_agent/.env")
     setup_logging()
 
     gaia_dataset_path = os.getenv("GAIA_DATASET_PATH", "./gaia_dataset")

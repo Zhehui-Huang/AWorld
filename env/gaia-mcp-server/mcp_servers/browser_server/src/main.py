@@ -22,10 +22,10 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-workspace = Path.home()
-logs_path = workspace / "logs"
+workspace = "/home/ethan/repo/AWorld/tmp/browser"
+logs_path = workspace + "/logs"
 logs_path.mkdir(parents=True, exist_ok=True)
-trace_log_dir = str(logs_path)
+trace_log_dir = str(logs_path) + "/browser_log"
 
 extended_browser_system_prompt = """
 # 效率指南
@@ -57,10 +57,10 @@ llm_config = ChatOpenAI(
 
 browser_profile = BrowserProfile(
     cookies_file=os.getenv("COOKIES_FILE_PATH"),
-    downloads_dir=str(workspace),
-    downloads_path=str(workspace),
-    save_recording_path=str(workspace),
-    save_downloads_path=str(workspace),
+    downloads_dir=workspace,
+    downloads_path=workspace,
+    save_recording_path=workspace,
+    save_downloads_path=workspace,
     chromium_sandbox=False,
     headless=False,
     keep_alive=True,
@@ -171,7 +171,7 @@ async def _create_browser_agent(task: str) -> Agent:
         browser=browser,
         #browser_profile=browser_profile,
         browser_session=browser_session,
-        save_conversation_path=trace_log_dir + "/trace.log",
+        save_conversation_path=trace_log_dir + "/browser_log/trace.log",
     )
 
 
@@ -296,7 +296,7 @@ async def browser_use(
                 execution_successful=False,
                 execution_time=execution_time,
                 error_type="execution_failure",
-                trace_log_path=trace_log_dir + "/browser_log/trace.log",
+                trace_log_path=trace_log_dir + "/trace.log",
             )
 
             logging.info(f"❌ {error_msg}")
@@ -403,7 +403,7 @@ async def browser_use(
             task=task,
             execution_successful=False,
             error_type="exception",
-            trace_log_path=trace_log_dir + "/browser_log/trace.log",
+            trace_log_path=trace_log_dir + "/trace.log",
         )
 
         logging.info(f"❌ {error_msg}")
