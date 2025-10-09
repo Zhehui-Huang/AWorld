@@ -355,7 +355,7 @@ class Agent(BaseAgent[Observation, List[ActionModel]]):
                 except Exception as e:
                     logger.error(f"[agent] Error parsing msg['content']: {msg}. Error: {e}")
                     content = str(msg['content'])
-                    chunk_size = 500
+                    chunk_size = 50000
                     for j in range(0, len(content), chunk_size):
                         chunk = content[j:j + chunk_size]
                         if j == 0:
@@ -364,7 +364,7 @@ class Agent(BaseAgent[Observation, List[ActionModel]]):
                             logger.info(f"[agent] Content (continued): {chunk}")
             else:
                 content = str(msg['content'])
-                chunk_size = 500
+                chunk_size = 50000
                 for j in range(0, len(content), chunk_size):
                     chunk = content[j:j + chunk_size]
                     if j == 0:

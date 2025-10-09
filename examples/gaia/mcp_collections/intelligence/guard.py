@@ -24,9 +24,9 @@ class GuardCollection(ActionCollection):
 
     def __init__(self, arguments: ActionArguments) -> None:
         super().__init__(arguments)
-        env_path = "/home/ethan/repo/AWorld/examples/gaia/cmd/agent_deploy/gaia_agent/.env"
-        load_dotenv(env_path, override=True, verbose=True)
-
+        # env_path = "/examples/gaia/.env"
+        # load_dotenv(env_path, override=True, verbose=True)
+        load_dotenv()
         # Initialize guarding model configuration
         self._llm_config = AgentConfig(
             llm_provider="openai",

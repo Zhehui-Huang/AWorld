@@ -32,16 +32,6 @@
             },
             "client_session_timeout_seconds": 9999.0
         },
-        "chess": {
-            "command": "python",
-            "args": [
-                "-m",
-                "examples.gaia.mcp_collections.tools.playchess"
-            ],
-            "env": {
-            },
-            "client_session_timeout_seconds": 9999.0
-        },
         "code": {
             "command": "python",
             "args": [

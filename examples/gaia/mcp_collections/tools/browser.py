@@ -106,12 +106,12 @@ class BrowserActionCollection(ActionCollection):
         self.trace_log_dir = str(self.workspace / "logs")
         os.makedirs(f"{self.trace_log_dir}/browser_log", exist_ok=True)
 
-        self._color_log("Browser automation service initialized Zhehui", Color.green)
+        self._color_log("Browser automation service initialized", Color.green)
         self._color_log(
             f"Downloads directory: {self.browser_profile.downloads_path}", Color.blue
         )
         self._color_log(
-            f"Trace logs zzzz directory: {self.trace_log_dir}/browser_log", Color.blue
+            f"Trace logs directory: {self.trace_log_dir}/browser_log", Color.blue
         )
 
     def _create_browser_agent(self, task: str) -> Agent:
