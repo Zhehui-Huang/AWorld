@@ -1,5 +1,6 @@
 # coding: utf-8
 # Copyright (c) 2025 inclusionAI.
+import os
 import abc
 import json
 import traceback
@@ -16,6 +17,8 @@ from aworld.memory.models import AgentExperience, LongTermMemoryTriggerParams, M
 from aworld.memory.vector.factory import VectorDBFactory
 from aworld.models.llm import acall_llm_model
 from aworld.models.utils import num_tokens_from_messages
+from aworld.core.memory import LongTermConfig, MemoryConfig, AgentMemoryConfig, EmbeddingsConfig, VectorDBConfig, \
+    MemoryLLMConfig
 
 AWORLD_MEMORY_EXTRACT_NEW_SUMMARY = """
 You are presented with a user task, a conversion that may contain the answer, and a previous conversation summary. 
@@ -181,7 +184,28 @@ class MemoryFactory:
             logger.info(f"instance use cached memory instance")
             return MEMORY_HOLDER["instance"]
         MEMORY_HOLDER["instance"] =  MemoryFactory.from_config(
-            config=MemoryConfig(provider="aworld"),
+            config=MemoryConfig(
+                provider="aworld",
+                # llm_config=MemoryLLMConfig(
+                #     provider="openai",
+                #     model_name=os.environ["LLM_MODEL_NAME"],
+                #     api_key=os.environ["LLM_API_KEY"],
+                #     base_url=os.environ["LLM_BASE_URL"]
+                # ),
+                # embedding_config=EmbeddingsConfig(
+                #     provider="openai", # or huggingface, openai, etc.
+                #     base_url="https://api.openai.com/v1",
+                #     model_name="text-embedding-3-small",
+                #     api_key=os.environ["LLM_API_KEY"],
+                # ),
+                # vector_store_config=VectorDBConfig(
+                #     provider="chroma",
+                #     config={
+                #         "chroma_data_path": "./chroma_db",
+                #         "collection_name": "aworld",
+                #     }
+                # )
+            ),
             memory_store=InMemoryMemoryStore()
         )
         logger.info(f"instance use new memory instance")

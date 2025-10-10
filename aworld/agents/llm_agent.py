@@ -364,13 +364,9 @@ class Agent(BaseAgent[Observation, List[ActionModel]]):
                             logger.info(f"[agent] Content (continued): {chunk}")
             else:
                 content = str(msg['content'])
-                chunk_size = 50000
-                for j in range(0, len(content), chunk_size):
-                    chunk = content[j:j + chunk_size]
-                    if j == 0:
-                        logger.info(f"[agent] Content: {chunk}")
-                    else:
-                        logger.info(f"[agent] Content (continued): {chunk}")
+                chunk_size = 50
+		truncated_content = content[:chunk_size] + '...' + content[-chunk_size:]
+		logger.info(f"[agent] content: {truncated_content}")
 
             if 'tool_calls' in msg and msg['tool_calls']:
                 for tool_call in msg.get('tool_calls'):

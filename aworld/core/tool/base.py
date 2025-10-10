@@ -383,7 +383,7 @@ class AsyncTool(AsyncBaseTool[Observation, List[ActionModel]]):
                                   action: List[ActionModel],
                                   message: Message,
                                   **kwargs):
-        logger.info(f"send callback message: {message}")
+        # logger.info(f"send callback message: {message}")
         await send_message(message)
 
         from aworld.runners.state_manager import RuntimeStateManager, RunNodeStatus, RunNodeBusiType

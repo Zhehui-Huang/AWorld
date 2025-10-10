@@ -101,7 +101,7 @@ class BrowserActionCollection(ActionCollection):
         self._color_log(f"Browser browser_profile: {self.browser_profile}", Color.green)
 
         # Log configuration
-        self._color_log(f"Zhehui: {self.workspace}", Color.blue)
+        self._color_log(f"{self.workspace}", Color.blue)
 
         self.trace_log_dir = str(self.workspace / "logs")
         os.makedirs(f"{self.trace_log_dir}/browser_log", exist_ok=True)

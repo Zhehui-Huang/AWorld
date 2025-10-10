@@ -9,16 +9,6 @@
             "env": {},
             "client_session_timeout_seconds": 9999.0
         },
-        "audio": {
-            "command": "python",
-            "args": [
-                "-m",
-                "examples.gaia.mcp_collections.media.audio"
-            ],
-            "env": {
-            },
-            "client_session_timeout_seconds": 9999.0
-        },
         "browser": {
             "command": "python",
             "args": [
@@ -42,41 +32,11 @@
             },
             "client_session_timeout_seconds": 9999.0
         },
-        "csv": {
-            "command": "python",
-            "args": [
-                "-m",
-                "examples.gaia.mcp_collections.documents.mscsv"
-            ],
-            "env": {
-            },
-            "client_session_timeout_seconds": 9999.0
-        },
-        "docx": {
-            "command": "python",
-            "args": [
-                "-m",
-                "examples.gaia.mcp_collections.documents.msdocx"
-            ],
-            "env": {
-            },
-            "client_session_timeout_seconds": 9999.0
-        },
         "download": {
             "command": "python",
             "args": [
                 "-m",
                 "examples.gaia.mcp_collections.tools.download"
-            ],
-            "env": {
-            },
-            "client_session_timeout_seconds": 9999.0
-        },
-        "xlsx": {
-            "command": "python",
-            "args": [
-                "-m",
-                "examples.gaia.mcp_collections.documents.msxlsx"
             ],
             "env": {
             },
@@ -97,26 +57,6 @@
             "args": [
                 "-m",
                 "examples.gaia.mcp_collections.documents.pdf"
-            ],
-            "env": {
-            },
-            "client_session_timeout_seconds": 9999.0
-        },
-        "pptx": {
-            "command": "python",
-            "args": [
-                "-m",
-                "examples.gaia.mcp_collections.documents.mspptx"
-            ],
-            "env": {
-            },
-            "client_session_timeout_seconds": 9999.0
-        },
-        "pubchem": {
-            "command": "python",
-            "args": [
-                "-m",
-                "examples.gaia.mcp_collections.tools.pubchem"
             ],
             "env": {
             },
@@ -150,46 +90,6 @@
                 "-m",
                 "examples.gaia.mcp_collections.tools.terminal"
             ]
-        },
-        "video": {
-            "command": "python",
-            "args": [
-                "-m",
-                "examples.gaia.mcp_collections.media.video"
-            ],
-            "env": {
-            },
-            "client_session_timeout_seconds": 9999.0
-        },
-        "wayback": {
-            "command": "python",
-            "args": [
-                "-m",
-                "examples.gaia.mcp_collections.tools.wayback"
-            ],
-            "env": {
-            },
-            "client_session_timeout_seconds": 9999.0
-        },
-        "wikipedia": {
-            "command": "python",
-            "args": [
-                "-m",
-                "examples.gaia.mcp_collections.tools.wiki"
-            ],
-            "env": {
-            },
-            "client_session_timeout_seconds": 9999.0
-        },
-        "youtube": {
-            "command": "python",
-            "args": [
-                "-m",
-                "examples.gaia.mcp_collections.tools.youtube"
-            ],
-            "env": {
-            },
-            "client_session_timeout_seconds": 9999.0
         },
         "txt": {
             "command": "python",
