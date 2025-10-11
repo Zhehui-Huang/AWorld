@@ -229,7 +229,7 @@ def color_log(logger: logging.Logger, value: str, color: Color | None, level: st
 
     # Format the message with color
     if color is None:
-        message = f"{Color.black} {value} {Color.reset}"
+        message = f"{Color.lightblue} {value} {Color.reset}"
     else:
         message = f"{color} {value} {Color.reset}"
 

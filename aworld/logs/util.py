@@ -17,7 +17,7 @@ SUPPORTED_FUNC = ['info', 'debug', 'warning', 'error', 'critical', 'exception', 
 
 class Color:
     """Supported more color in log."""
-    black = '\033[30m'
+    # black = '\033[30m'
     red = '\033[31m'
     green = '\033[32m'
     orange = '\033[33m'
@@ -40,7 +40,7 @@ class Color:
     strikethrough = '\033[09m'
 
 
-def aworld_log(logger, color: str = Color.black, level: str = "INFO"):
+def aworld_log(logger, color: str = Color.lightblue, level: str = "INFO"):
     """Colored log style in the Aworld.
 
     Args:
@@ -92,9 +92,9 @@ class AWorldLogger:
         file_formatter = formatter
         console_formatter = formatter
         if not formatter:
-            format = """<black>{extra[trace_id]} | {time:YYYY-MM-DD HH:mm:ss.SSS} | {level} | \
-{extra[name]} PID: {process}, TID:{thread} |</black> <bold>{name}.{function}:{line}</bold> \
-- \n<level>{message}</level> {exception} """
+            format = """<light-white>{extra[trace_id]} | {time:YYYY-MM-DD HH:mm:ss.SSS} | {level} | \
+{extra[name]} PID: {process}, TID:{thread} |</light-white> <bold>{name}.{function}:{line}</bold> \
+\n<level>{message}</level> {exception} """
 
             def _formatter(record):
                 if record['extra'].get('name') == 'AWorld':

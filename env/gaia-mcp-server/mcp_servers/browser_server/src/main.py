@@ -22,7 +22,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-workspace = Path.home()
+workspace = os.getenv("AWORLD_WORKSPACE", "~")
 logs_path = workspace / "logs"
 logs_path.mkdir(parents=True, exist_ok=True)
 trace_log_dir = str(logs_path)
