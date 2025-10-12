@@ -87,16 +87,42 @@ class ActionCollection:
             FileNotFoundError: If file doesn't exist
             ValueError: If file type is not supported
         """
-        path = Path(file_path).expanduser()
-        if not path.is_absolute():
-            path = self.workspace / path
+        # Handle paths that contain URLs (e.g., /home/user/https://arxiv.org/pdf/2404.11891)
+        if "http://" in file_path or "https://" in file_path:
+            # Extract the URL part and get the final content
+            url_start = max(file_path.find("http://"), file_path.find("https://"))
+            url_part = file_path[url_start:]
+            
+            # Get the final part after the last slash
+            final_content = url_part.split("/")[-1]
+            
+            # If the URL contains 'pdf' and the final content doesn't have an extension,
+            # add .pdf extension
+            if "pdf" in url_part.lower() and not final_content.endswith(".pdf"):
+                final_content = final_content.replace(".", "_") + ".pdf"
+            
+            # Replace the URL part with just the final content
+            base_path = file_path[:url_start]
+            modified_path = base_path + final_content
+            
+            path = Path(modified_path).expanduser()
+            if not path.is_absolute():
+                path = self.workspace / path
+            
+            extension = path.suffix.lower()
+        else:
+            # Normal file path handling
+            path = Path(file_path).expanduser()
+            if not path.is_absolute():
+                path = self.workspace / path
+            extension = path.suffix.lower()
 
         if not path.exists():
             raise FileNotFoundError(f"File not found: {path}")
 
-        if path.suffix.lower() not in self.supported_extensions:
+        if extension not in self.supported_extensions:
             raise ValueError(
-                f"Unsupported file type: {path.suffix}. Supported types: {', '.join(self.supported_extensions)}"
+                f"Unsupported file type: {extension}. Supported types: {', '.join(self.supported_extensions)}"
             )
 
         return path
