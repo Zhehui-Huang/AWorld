@@ -23,7 +23,7 @@ from aworld.core.model_output_parser import ModelOutputParser
 from aworld.core.tool.tool_desc import get_tool_desc
 from aworld.events.util import send_message
 from aworld.logs.util import logger, Color
-from aworld.mcp_client.utils import mcp_tool_desc_transform
+from aworld.mcp_client.utils import mcp_tool_desc_transform, process_mcp_tools
 from aworld.memory.main import MemoryFactory
 from aworld.memory.models import MessageMetadata, MemoryAIMessage, MemoryToolMessage, MemoryHumanMessage, \
     MemorySystemMessage, MemoryMessage
@@ -87,11 +87,15 @@ class LlmOutputParser(ModelOutputParser[ModelResponse, AgentResult]):
                 if full_name and not full_name.startswith(
                         "mcp__") and agent_info and agent_info.sandbox and agent_info.sandbox.mcpservers and agent_info.sandbox.mcpservers.mcp_servers and len(
                         agent_info.sandbox.mcpservers.mcp_servers) > 0:
-                    tmp_names = full_name.split("__")
-                    tmp_tool_name = tmp_names[0]
-                    if tmp_tool_name in agent_info.sandbox.mcpservers.mcp_servers:
-                        full_name = f"mcp__{full_name}"
-
+                    if agent_info.sandbox.mcpservers.map_tool_list:
+                        _server_name = agent_info.sandbox.mcpservers.map_tool_list.get(full_name)
+                        if _server_name:
+                            full_name = f"mcp__{_server_name}__{full_name}"
+                    else:
+                        tmp_names = full_name.split("__")
+                        tmp_tool_name = tmp_names[0]
+                        if tmp_tool_name in agent_info.sandbox.mcpservers.mcp_servers:
+                            full_name = f"mcp__{full_name}"
                 names = full_name.split("__")
                 tool_name = names[0]
                 if is_agent_by_name(full_name):
@@ -231,18 +235,29 @@ class Agent(BaseAgent[Observation, List[ActionModel]]):
         """Transform of descriptions of supported tools, agents, and MCP servers in the framework to support function calls of LLM."""
 
         # Stateless tool
-        self.tools = tool_desc_transform(get_tool_desc(),
-                                         tools=self.tool_names if self.tool_names else [],
-                                         black_tool_actions=self.black_tool_actions)
+        try:
+            self.tools = tool_desc_transform(get_tool_desc(),
+                                             tools=self.tool_names if self.tool_names else [],
+                                             black_tool_actions=self.black_tool_actions)
+        except:
+            logger.warning(f"{self.id()} get tools desc fail, no tool to use. error: {traceback.format_exc()}")
         # Agents as tool
-        self.tools.extend(agent_desc_transform(get_agent_desc(),
-                                               agents=self.handoffs if self.handoffs else []))
+        try:
+            self.tools.extend(agent_desc_transform(get_agent_desc(),
+                                                   agents=self.handoffs if self.handoffs else []))
+        except:
+            logger.warning(f"{self.id()} get agent desc fail, no agent as tool to use. error: {traceback.format_exc()}")
         # MCP servers are tools
-        if self.sandbox:
-            mcp_tools = await self.sandbox.mcpservers.list_tools(context)
-            self.tools.extend(mcp_tools)
-        else:
-            self.tools.extend(await mcp_tool_desc_transform(self.mcp_servers, self.mcp_config))
+        try:
+            if self.sandbox:
+                mcp_tools = await self.sandbox.mcpservers.list_tools(context)
+                processed_tools, tool_mapping = await process_mcp_tools(mcp_tools)
+                self.sandbox.mcpservers.map_tool_list = tool_mapping
+                self.tools.extend(processed_tools)
+            else:
+                self.tools.extend(await mcp_tool_desc_transform(self.mcp_servers, self.mcp_config))
+        except:
+            logger.warning(f"{self.id()} get MCP desc fail, no MCP to use. error: {traceback.format_exc()}")
 
     def messages_transform(self,
                            content: str,
@@ -541,6 +556,7 @@ class Agent(BaseAgent[Observation, List[ActionModel]]):
         messages = await self.build_llm_input(observation, info, message=message, **kwargs)
 
         serializable_messages = to_serializable(messages)
+        message.context.context_info["llm_input"] = serializable_messages
         llm_response = None
         if source_span:
             source_span.set_attribute("messages", json.dumps(serializable_messages, ensure_ascii=False))
@@ -717,14 +733,6 @@ class Agent(BaseAgent[Observation, List[ActionModel]]):
             LLM response
         """
         llm_response = None
-        source_span = trace.get_current_span()
-        serializable_messages = to_serializable(messages)
-        message.context.context_info["llm_input"] = serializable_messages
-
-        if source_span:
-            source_span.set_attribute("messages", json.dumps(
-                serializable_messages, ensure_ascii=False))
-
         try:
             stream_mode = kwargs.get("stream", False) or self.conf.llm_config.llm_stream_call if self.conf.llm_config else False
             float_temperature = float(self.conf.llm_config.llm_temperature)

@@ -135,6 +135,27 @@ Demonstrating collective intelligence across diverse domains. Join us in the ong
       <td style="padding: 8px; vertical-align: top;">The more tools the better?</td>
       <td style="padding: 8px; vertical-align: top;">2025/09/18</td>
     </tr>
+    <tr>
+      <td style="padding: 8px; vertical-align: top;">🖼️ Multi-Modal</td>
+      <td style="padding: 8px; vertical-align: top;">
+        <strong>VisualWebArena Rank <br> 1st in September</strong>
+        <br>
+        <a href="https://docs.google.com/spreadsheets/d/1M801lEpBbKSNwP-vDBkC_pF7LdyGU1f_ufZb_NWNBZQ/edit?gid=2044883967#gid=2044883967" target="_blank" style="text-decoration: none;">
+          <img src="https://img.shields.io/badge/VWA-Leaderboard-green" alt="VWA">
+        </a>
+      </td>
+      <td style="padding: 8px; vertical-align: top;">
+        <strong>36.5%</strong> <br> Success Rate
+        <br>
+        <a href="examples/visualwebarena/README.md" target="_blank" style="text-decoration: none;">
+          <img src="https://img.shields.io/badge/Code-README-green" alt="Code">
+        </a>
+      </td>
+      <td style="padding: 8px; vertical-align: top;">Automated tool generation <br>
+        <a href="https://arxiv.org/pdf/2509.21072" target="_blank" style="text-decoration: none;">
+          <img src="https://img.shields.io/badge/Paper-arXiv-red" alt="Paper"></td>
+      <td style="padding: 8px; vertical-align: top;">2025/09/25</td>
+    </tr>
   </tbody>
 </table>
 
@@ -243,7 +264,7 @@ pip install .
 ## Hello world examples
 We introduce the concepts of `Agent` and `Runners` to help you get started quickly.
 
-For parallel task execution, see the [parallel run examples](examples/parallel_run/README.md).
+For parallel task execution, see the [parallel run examples](examples/parallel_task/README.md).
 
 ```python
 from aworld.agents.llm_agent import Agent
@@ -527,6 +548,11 @@ This section showcases novel research papers developed using AWorld, demonstrati
 
     *Zhitian Xie, Qintong Wu, Chengyue Yu, Chenyi Zhuang, Jinjie Gu*
 
+2. **Recon-Act: A Self-Evolving Multi-Agent Browser-Use System via Web Reconnaissance, Tool Generation, and Task Execution.** arxiv, 2025. [paper](https://arxiv.org/pdf/2509.21072), [code](https://github.com/inclusionAI/AWorld/tree/main/examples/visualwebarena)
+
+    *Kaiwen He, Zhiwei Wang, Chenyi Zhuang, Jinjie Gu*
+
+
 #### Model Training
 
 1. **AWorld: Orchestrating the Training Recipe for Agentic AI.** arxiv, 2025. [paper](https://arxiv.org/abs/2508.20404), [code](https://github.com/inclusionAI/AWorld/tree/main/train), [model](https://huggingface.co/inclusionAI/Qwen3-32B-AWorld)
@@ -548,6 +574,10 @@ This section showcases novel research papers developed using AWorld, demonstrati
 5. **V2P: From Background Suppression to Center Peaking for Robust GUI Grounding Task.** arxiv, 2025. [paper](https://arxiv.org/abs/2508.13634), [code](https://github.com/inclusionAI/AgenticLearning/tree/main/V2P)
 
     *Jikai Chen, Long Chen, Dong Wang, Leilei Gan, Chenyi Zhuang, Jinjie Gu*
+
+6. **Don’t Just Fine-tune the Agent, Tune the Environment** arxiv, 2025. [paper](https://arxiv.org/abs/2510.10197)
+
+    *Siyuan Lu, Zechuan Wang, Hongxuan Zhang, Qintong Wu, Leilei Gan, Chenyi Zhuang, etc.*
 
 
 # Contributing

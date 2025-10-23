@@ -52,6 +52,7 @@ from examples.for_test import topology<div align="center">
 | **🤖 智能体** | **GAIA基准测试卓越表现** [![][GAIA]](https://huggingface.co/spaces/gaia-benchmark/leaderboard) | Pass@1: **67.89**, Pass@3: **83.49** (109个任务) [![][Code]](./examples/gaia/README_GUARD.md)  | 多智能体系统稳定性与编排 [![][Paper]](https://arxiv.org/abs/2508.09889) | 2025/08/06 |
 | **🧠 推理能力** | **IMO 2025问题求解** [![][IMO]](https://www.imo-official.org/year_info.aspx?year=2025) | 6小时内解决5/6道题 [![][Code]](examples/imo/README.md) | 多智能体协作超越单一模型 | 2025/07/25 |
 | **🖼️ 多模态** | **OSWorld榜单第一** [![][OSWorld]](https://os-world.github.io/) | 成功率=58.0% [![][Code]](examples/osworld/README.md) | 工具越多越好？ | 2025/09/18 |
+| **🖼️ 多模态** | **VisualWebArena九月榜单第一** [![][VWA]](https://docs.google.com/spreadsheets/d/1M801lEpBbKSNwP-vDBkC_pF7LdyGU1f_ufZb_NWNBZQ/edit?gid=2044883967#gid=2044883967) | 成功率=36.5% [![][Code]](examples/visualwebarena/README.md) | 工具自动化生成 [![][Paper]](https://arxiv.org/pdf/2509.21072) | 2025/09/25 |
 
 <details>
 <summary style="font-size: 1.2em;font-weight: bold;"> 🌏 查看进行中的项目 </summary>
@@ -124,7 +125,7 @@ pip install .
 ## Hello world 示例
 我们引入 `Agent` 和 `Runners` 的概念来帮助您快速上手。
 
-关于并行任务执行，请参考[并行运行示例](examples/parallel_run/README.md)。
+关于并行任务执行，请参考[并行运行示例](examples/parallel_task/README.md)。
 
 ```python
 from aworld.agents.llm_agent import Agent
@@ -393,6 +394,12 @@ AWorld 提供了一个全面的环境，支持多样化的应用，如 `产品�
 
     *Zhitian Xie, Qintong Wu, Chengyue Yu, Chenyi Zhuang, Jinjie Gu*
 
+2. **Recon-Act: A Self-Evolving Multi-Agent Browser-Use System via Web Reconnaissance, Tool Generation, and Task Execution.** arxiv, 2025. [论文](https://arxiv.org/pdf/2509.21072), [代码](https://github.com/inclusionAI/AWorld/tree/main/examples/visualwebarena)
+
+    *Kaiwen He, Zhiwei Wang, Chenyi Zhuang, Jinjie Gu*
+
+
+
 #### 模型训练
 
 1. **AWorld: Orchestrating the Training Recipe for Agentic AI.** arxiv, 2025. [论文](https://arxiv.org/abs/2508.20404), [代码](https://github.com/inclusionAI/AWorld/tree/main/train), [模型](https://huggingface.co/inclusionAI/Qwen3-32B-AWorld)
@@ -414,6 +421,11 @@ AWorld 提供了一个全面的环境，支持多样化的应用，如 `产品�
 5. **V2P: From Background Suppression to Center Peaking for Robust GUI Grounding Task.** arxiv, 2025. [论文](https://arxiv.org/abs/2508.13634), [代码](https://github.com/inclusionAI/AgenticLearning/tree/main/V2P)
 
     *Jikai Chen, Long Chen, Dong Wang, Leilei Gan, Chenyi Zhuang, Jinjie Gu*
+
+6. **Don’t Just Fine-tune the Agent, Tune the Environment** arxiv, 2025. [论文](https://arxiv.org/abs/2510.10197)
+
+    *Siyuan Lu, Zechuan Wang, Hongxuan Zhang, Qintong Wu, Leilei Gan, Chenyi Zhuang, etc.*
+
 
 # 贡献指南
 我们热烈欢迎开发者加入我们构建和改进AWorld！无论您对增强框架、修复错误还是添加新功能感兴趣，您的贡献对我们都很宝贵。
@@ -620,6 +632,7 @@ aworld api
 [Code]: https://img.shields.io/badge/Code-FF6B6B
 [Paper]: https://img.shields.io/badge/Paper-4ECDC4
 [OSWorld]: https://img.shields.io/badge/OSWorld-E66F51
+[VWA]: https://img.shields.io/badge/VWA-E66F51
 
 
 
