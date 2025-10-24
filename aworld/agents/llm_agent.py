@@ -39,6 +39,7 @@ from aworld.utils.common import sync_exec, nest_dict_counter
 from aworld.utils.serialized_util import to_serializable
 from aworld.memory.models import MemoryItem
 
+from aworld.agents.llm_json_dataset_logger import LLMJsonDatasetLogger
 
 class LlmOutputParser(ModelOutputParser[ModelResponse, AgentResult]):
     async def parse(self, resp: ModelResponse, **kwargs) -> AgentResult:
@@ -215,6 +216,9 @@ class Agent(BaseAgent[Observation, List[ActionModel]]):
         self.use_tools_in_prompt = use_tools_in_prompt if use_tools_in_prompt else conf.use_tools_in_prompt
         self.tools_aggregate_func = tool_aggregate_func if tool_aggregate_func else self._tools_aggregate_func
         self.event_handler_name = event_handler_name
+
+        # Extra
+        self.llm_json_dataset_logger = LLMJsonDatasetLogger()
 
     @property
     def llm(self):
@@ -598,6 +602,15 @@ class Agent(BaseAgent[Observation, List[ActionModel]]):
         logger.info(f"agent_result: {agent_result}")
         policy_result: Optional[List[ActionModel]] = None
         if self.is_agent_finished(llm_response, agent_result):
+            # Log the final LLM response for dataset logging since it won't go through build_llm_input again
+            # Build final messages including the LLM response
+            final_messages = messages.copy()
+            if llm_response and llm_response.content:
+                final_messages.append({
+                    'role': 'assistant',
+                    'content': llm_response.content
+                })
+            self.llm_json_dataset_logger.log_conversation(to_serializable(final_messages))
             policy_result = agent_result.actions
         else:
             if not self.wait_tool_result:
@@ -676,7 +689,7 @@ class Agent(BaseAgent[Observation, List[ActionModel]]):
             logger.debug(f"Process messages error details: {traceback.format_exc()}")
 
         self._log_messages(messages, context=message.context)
-
+        self.llm_json_dataset_logger.log_conversation(to_serializable(messages))
         return messages
 
     def _process_messages(self, messages: List[Dict[str, Any]],
