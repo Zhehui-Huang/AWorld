@@ -1,0 +1,26 @@
+{
+    "mcpServers": {
+        "search": {
+            "command": "python",
+            "args": [
+                "-m",
+                "examples.gaia.agent_collections.search_agent.mcp_tools.search"
+            ],
+            "env": {
+                "GOOGLE_API_KEY": "${GOOGLE_API_KEY}",
+                "GOOGLE_CSE_ID": "${GOOGLE_CSE_ID}"
+            },
+            "client_session_timeout_seconds": 9999.0
+        },
+        "download": {
+            "command": "python",
+            "args": [
+                "-m",
+                "examples.gaia.agent_collections.search_agent.mcp_tools.download"
+            ],
+            "env": {
+            },
+            "client_session_timeout_seconds": 9999.0
+        }
+    }
+}
