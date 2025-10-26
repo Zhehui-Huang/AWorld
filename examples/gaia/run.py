@@ -11,9 +11,13 @@ from dotenv import load_dotenv
 
 from aworld.agents.llm_agent import Agent
 from aworld.config.conf import AgentConfig, TaskConfig
+from aworld.core.agent.swarm import Swarm
 from aworld.runner import Runners
 from aworld.core.task import Task
 from examples.gaia.prompt import system_prompt
+from examples.gaia.agent_collections.search_agent.prompt import (
+    system_prompt as search_system_prompt,
+)
 from examples.gaia.utils import (
     add_file_path,
     load_dataset_meta,
@@ -89,14 +93,28 @@ if __name__ == "__main__":
     full_dataset = load_dataset_meta(gaia_dataset_path, split=args.split)
     logging.info(f"Total questions: {len(full_dataset)}")
 
+    # Load MCP config only for the search sub-agent
+    search_mcp_config: dict = {}
+    available_servers: list[str] = []
     try:
-        with open(Path(__file__).parent / "mcp.json", mode="r", encoding="utf-8") as f:
-            mcp_config: dict[dict[str, Any]] = json.loads(f.read())
-            available_servers: list[str] = list(server_name for server_name in mcp_config.get("mcpServers", {}).keys())
-            logging.info(f"🔧 MCP Available Servers: {available_servers}")
+        search_mcp_path = (
+            Path(__file__).parent
+            / "agent_collections"
+            / "search_agent"
+            / "mcp.json"
+        )
+        with open(search_mcp_path, mode="r", encoding="utf-8") as f:
+            search_mcp_config = json.loads(f.read())
+            available_servers = list(
+                server_name for server_name in search_mcp_config.get("mcpServers", {}).keys()
+            )
+            logging.info(f"🔧 Search MCP Available Servers: {available_servers}")
     except json.JSONDecodeError as e:
-        logging.error(f"Error loading mcp_collections.json: {e}")
-        mcp_config = {}
+        logging.error(f"Error loading search agent mcp.json: {e}")
+        search_mcp_config = {}
+    except FileNotFoundError:
+        logging.warning("Search agent mcp.json not found; continuing without MCP servers for search agent")
+        search_mcp_config = {}
 
     agent_config = AgentConfig(
         llm_provider=os.getenv("LLM_PROVIDER", "openai"),
@@ -105,13 +123,27 @@ if __name__ == "__main__":
         llm_api_key=os.getenv("LLM_API_KEY"),
         llm_temperature=os.getenv("LLM_TEMPERATURE", 0.0)
     )
+    # Build search sub-agent that owns MCP tools
+    search_agent = Agent(
+        conf=agent_config,
+        name="gaia_search_agent",
+        agent_id="search_agent",
+        system_prompt=search_system_prompt,
+        mcp_config=search_mcp_config,
+        mcp_servers=available_servers,
+    )
+
+    # Main agent delegates to agents (no direct MCP tools)
     super_agent = Agent(
         conf=agent_config,
         name="gaia_super_agent",
+        agent_id="gaia_super_agent_main",
         system_prompt=system_prompt,
-        mcp_config=mcp_config,
-        mcp_servers=available_servers,
+        agent_names=[search_agent.id()],
     )
+
+    # Register sub-agents to enable handoff (no explicit swarm execution needed)
+    Swarm.register_agent([search_agent])
 
     # load results from the checkpoint file
     if os.path.exists(os.getenv("AWORLD_WORKSPACE", "~") + "/results.json"):

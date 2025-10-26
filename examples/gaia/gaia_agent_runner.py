@@ -15,6 +15,7 @@ from aworld.cmd.utils.agent_ui_parser import (
 )
 from aworld.config.conf import AgentConfig, TaskConfig
 from aworld.agents.llm_agent import Agent
+from aworld.core.agent.swarm import Swarm
 from aworld.core.task import Task
 from aworld.output.artifact import ArtifactType
 from aworld.output.workspace import WorkSpace
@@ -27,6 +28,9 @@ from .utils import (
     question_scorer,
 )
 from .prompt import system_prompt
+from .agent_collections.search_agent.prompt import (
+    system_prompt as search_system_prompt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -167,24 +171,44 @@ class GaiaAgentRunner:
             llm_temperature=llm_temperature,
         )
 
+        # Build search sub-agent that owns MCP tools
         if mcp_config is None:
             mcp_path = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)), "mcp.json"
+                os.path.dirname(os.path.abspath(__file__)),
+                "agent_collections",
+                "search_agent",
+                "mcp.json",
             )
-            with open(mcp_path, "r") as f:
-                mcp_config = json.load(f)
-                logger.info(f"Gaia Agent Runner mcp_config: {mcp_config}")
+            try:
+                with open(mcp_path, "r") as f:
+                    mcp_config = json.load(f)
+                    logger.info(f"Gaia Search Agent mcp_config: {list(mcp_config.get('mcpServers', {}).keys())}")
+            except FileNotFoundError:
+                logger.warning("Search agent mcp.json not found; continuing without MCP servers")
+                mcp_config = {}
 
-        self.super_agent = Agent(
+        self.search_agent = Agent(
             conf=self.agent_config,
-            name="gaia_super_agent",
-            system_prompt=system_prompt,
+            name="gaia_search_agent",
+            agent_id="search_agent",
+            system_prompt=search_system_prompt,
             mcp_config=mcp_config,
             mcp_servers=(
                 os.getenv("GAIA_MCP_SERVERS", "").split(",") if os.getenv("GAIA_MCP_SERVERS", "") else ""
                 or mcp_config.get("mcpServers", {}).keys()
             ),
         )
+
+        # Main agent delegates to the search agent; no direct MCP tools
+        self.super_agent = Agent(
+            conf=self.agent_config,
+            name="gaia_super_agent",
+            agent_id="gaia_super_agent_main",
+            system_prompt=system_prompt,
+            agent_names=[self.search_agent.id()],
+        )
+        # Register sub-agent globally for handoff selection
+        Swarm.register_agent([self.search_agent])
 
         self.gaia_dataset_path = os.path.abspath(
             os.getenv(
@@ -202,8 +226,8 @@ class GaiaAgentRunner:
     async def run(self, prompt: str):
         yield (f"\n### GAIA Agent Start!")
 
-        mcp_servers = "\n- ✅ ".join(self.super_agent.mcp_servers)
-        yield (f"\n```gaia_agent_status\n- ✅ {mcp_servers}\n```\n")
+        agent_list = [self.super_agent.name(), self.search_agent.name()]
+        yield (f"\n```gaia_agent_status\n- 🤖 Agents:\n  - {agent_list[0]}\n  - {agent_list[1]}\n```\n")
 
         question = None
         data_item = None
