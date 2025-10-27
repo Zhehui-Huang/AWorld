@@ -1,0 +1,105 @@
+{
+    "mcpServers": {
+        "maneuvering": {
+            "command": "python",
+            "args": [
+                "-m",
+                "examples.gaia.mcp_collections.intelligence.guard"
+            ],
+            "env": {},
+            "client_session_timeout_seconds": 9999.0
+        },
+        "browser": {
+            "command": "python",
+            "args": [
+                "-m",
+                "examples.gaia.mcp_collections.tools.browser"
+            ],
+            "env": {
+                "LLM_MODEL_NAME": "${LLM_MODEL_NAME}",
+                "LLM_API_KEY": "${LLM_API_KEY}",
+                "LLM_BASE_URL": "${LLM_BASE_URL}"
+            },
+            "client_session_timeout_seconds": 9999.0
+        },
+        "code": {
+            "command": "python",
+            "args": [
+                "-m",
+                "examples.gaia.mcp_collections.tools.e2b_code_server"
+            ],
+            "env": {
+            },
+            "client_session_timeout_seconds": 9999.0
+        },
+        "download": {
+            "command": "python",
+            "args": [
+                "-m",
+                "examples.gaia.mcp_collections.tools.download"
+            ],
+            "env": {
+            },
+            "client_session_timeout_seconds": 9999.0
+        },
+        "image": {
+            "command": "python",
+            "args": [
+                "-m",
+                "examples.gaia.mcp_collections.media.image"
+            ],
+            "env": {
+            },
+            "client_session_timeout_seconds": 9999.0
+        },
+        "pdf": {
+            "command": "python",
+            "args": [
+                "-m",
+                "examples.gaia.mcp_collections.documents.pdf"
+            ],
+            "env": {
+            },
+            "client_session_timeout_seconds": 9999.0
+        },
+        "reasoning": {
+            "command": "python",
+            "args": [
+                "-m",
+                "examples.gaia.mcp_collections.intelligence.think"
+            ],
+            "env": {
+            },
+            "client_session_timeout_seconds": 9999.0
+        },
+        "search": {
+            "command": "python",
+            "args": [
+                "-m",
+                "examples.gaia.mcp_collections.tools.search"
+            ],
+            "env": {
+                "GOOGLE_API_KEY": "${GOOGLE_API_KEY}",
+                "GOOGLE_CSE_ID": "${GOOGLE_CSE_ID}"
+            },
+            "client_session_timeout_seconds": 9999.0
+        },
+        "terminal": {
+            "command": "python",
+            "args": [
+                "-m",
+                "examples.gaia.mcp_collections.tools.terminal"
+            ]
+        },
+        "txt": {
+            "command": "python",
+            "args": [
+                "-m",
+                "examples.gaia.mcp_collections.documents.txt"
+            ],
+            "env": {
+            },
+            "client_session_timeout_seconds": 9999.0
+        }
+    }
+}

@@ -11,13 +11,9 @@ from dotenv import load_dotenv
 
 from aworld.agents.llm_agent import Agent
 from aworld.config.conf import AgentConfig, TaskConfig
-from aworld.core.agent.swarm import Swarm
-from aworld.runner import Runners
 from aworld.core.task import Task
+from aworld.runner import Runners
 from examples.gaia.prompt import system_prompt
-from examples.gaia.agent_collections.search_agent.prompt import (
-    system_prompt as search_system_prompt,
-)
 from examples.gaia.utils import (
     add_file_path,
     load_dataset_meta,
@@ -25,235 +21,357 @@ from examples.gaia.utils import (
     report_results,
 )
 
-# Create log directory if it doesn't exist
-if not os.path.exists(os.getenv("AWORLD_WORKSPACE", "~")):
-    os.makedirs(os.getenv("AWORLD_WORKSPACE", "~"))
-
-parser = argparse.ArgumentParser()
-parser.add_argument(
-    "--start",
-    type=int,
-    default=0,
-    help="Start index of the dataset",
-)
-parser.add_argument(
-    "--end",
-    type=int,
-    default=20,
-    help="End index of the dataset",
-)
-parser.add_argument(
-    "--q",
-    type=str,
-    help="Question Index, e.g., 0-0-0-0-0. Highest priority: override other arguments if provided.",
-)
-parser.add_argument(
-    "--skip",
-    action="store_true",
-    help="Skip the question if it has been processed before.",
-)
-parser.add_argument(
-    "--split",
-    type=str,
-    default="validation",
-    help="Split of the dataset, e.g., validation, test",
-)
-parser.add_argument(
-    "--blacklist_file_path",
-    type=str,
-    nargs="?",
-    help="Blacklist file path, e.g., blacklist.txt",
-)
-args = parser.parse_args()
+# Constants
+RESULTS_FILENAME = "/results.json"
+ANSWER_REGEX = r"<answer>(.*?)</answer>"
+DEFAULT_WORKSPACE = "~"
 
 
-def setup_logging():
-    logging_logger = logging.getLogger()
-    logging_logger.setLevel(logging.INFO)
-
-    log_file_name = f"/super_agent_{args.q}.log" if args.q else f"/super_agent_{args.start}_{args.end}.log"
-    file_handler = logging.FileHandler(
-        os.getenv("AWORLD_WORKSPACE", "~") + log_file_name,
-        mode="a",
-        encoding="utf-8",
+def parse_arguments() -> argparse.Namespace:
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description="Run GAIA benchmark with multi-agent system")
+    parser.add_argument(
+        "--start",
+        type=int,
+        default=0,
+        help="Start index of the dataset",
     )
-    file_handler.setLevel(logging.INFO)
+    parser.add_argument(
+        "--end",
+        type=int,
+        default=20,
+        help="End index of the dataset",
+    )
+    parser.add_argument(
+        "--q",
+        type=str,
+        help="Question task_id, e.g., 0-0-0-0-0. Overrides --start and --end if provided.",
+    )
+    parser.add_argument(
+        "--skip",
+        action="store_true",
+        help="Skip questions that have been processed before.",
+    )
+    parser.add_argument(
+        "--split",
+        type=str,
+        default="validation",
+        help="Dataset split: 'validation' or 'test'",
+    )
+    parser.add_argument(
+        "--blacklist_file_path",
+        type=str,
+        nargs="?",
+        help="Path to blacklist file containing task_ids to skip",
+    )
+    return parser.parse_args()
 
+
+def get_workspace_path() -> str:
+    """Get the workspace path from environment or default."""
+    return os.getenv("AWORLD_WORKSPACE", DEFAULT_WORKSPACE)
+
+
+def ensure_workspace_exists() -> None:
+    """Create workspace directory if it doesn't exist."""
+    workspace_path = get_workspace_path()
+    os.makedirs(workspace_path, exist_ok=True)
+
+
+def setup_logging(args: argparse.Namespace) -> None:
+    """Configure logging to file."""
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    log_filename = f"/entry_agent_{args.q}.log" if args.q else f"/entry_agent_{args.start}_{args.end}.log"
+    log_path = get_workspace_path() + log_filename
+    
+    file_handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
+    file_handler.setLevel(logging.INFO)
+    
     formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     file_handler.setFormatter(formatter)
+    
+    logger.addHandler(file_handler)
 
-    logging_logger.addHandler(file_handler)
+
+def load_mcp_config() -> tuple[Dict[str, Any], List[str]]:
+    """Load MCP configuration for the search agent.
+
+    Returns:
+        Tuple of (mcp_config dict, list of available server names)
+    """
+    entry_mcp_path = Path(__file__).parent / "mcp.json"
+
+    try:
+        with open(entry_mcp_path, mode="r", encoding="utf-8") as f:
+            mcp_config = json.load(f)
+            available_servers = list(mcp_config.get("mcpServers", {}).keys())
+            logging.info(f"🔧 Search MCP Available Servers: {available_servers}")
+            return mcp_config, available_servers
+    except json.JSONDecodeError as e:
+        logging.error(f"Error loading search agent mcp.json: {e}")
+        return {}, []
+    except FileNotFoundError:
+        logging.warning("Search agent mcp.json not found; continuing without MCP servers")
+        return {}, []
+
+
+def create_agent_config() -> AgentConfig:
+    """Create agent configuration from environment variables."""
+    return AgentConfig(
+        llm_provider=os.getenv("LLM_PROVIDER", "openai"),
+        llm_model_name=os.getenv("LLM_MODEL_NAME", "gpt-4o"),
+        llm_base_url=os.getenv("LLM_BASE_URL"),
+        llm_api_key=os.getenv("LLM_API_KEY"),
+        llm_temperature=os.getenv("LLM_TEMPERATURE", 0.0),
+    )
+
+
+def setup_agents(agent_config: AgentConfig, mcp_config: Dict[str, Any], mcp_servers: List[str]) -> Agent:
+    """Set up the main agent and sub-agents.
+    
+    Args:
+        agent_config: Configuration for all agents
+        mcp_config: MCP configuration dictionary
+        mcp_servers: List of available MCP server names
+        
+    Returns:
+        The main super agent
+    """
+    # Create search sub-agent with MCP tools
+    entry_agent = Agent(
+        conf=agent_config,
+        name="entry_agent",
+        agent_id="entry_agent",
+        system_prompt=system_prompt,
+        mcp_config=mcp_config,
+        mcp_servers=mcp_servers,
+    )
+    
+    return entry_agent
+
+
+def load_results() -> List[Dict[str, Any]]:
+    """Load existing results from checkpoint file."""
+    results_path = get_workspace_path() + RESULTS_FILENAME
+    if os.path.exists(results_path):
+        with open(results_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+
+def load_blacklist(blacklist_path: str | None) -> set[str]:
+    """Load blacklisted task IDs from file.
+    
+    Args:
+        blacklist_path: Path to blacklist file, or None
+        
+    Returns:
+        Set of blacklisted task IDs
+    """
+    if blacklist_path and os.path.exists(blacklist_path):
+        with open(blacklist_path, "r", encoding="utf-8") as f:
+            return set(f.read().splitlines())
+    return set()
+
+
+def save_results(results: List[Dict[str, Any]]) -> None:
+    """Save results to checkpoint file."""
+    results_path = get_workspace_path() + RESULTS_FILENAME
+    with open(results_path, "w", encoding="utf-8") as f:
+        json.dump(results, f, indent=4, ensure_ascii=False)
+
+
+def should_skip_question(dataset_record: Dict[str, Any], results: List[Dict[str, Any]], 
+                         blacklist: set[str], args: argparse.Namespace) -> bool:
+    """Determine if a question should be skipped based on various conditions.
+    
+    Args:
+        dataset_record: The dataset record to check
+        results: List of existing results
+        blacklist: Set of blacklisted task IDs
+        args: Command line arguments
+        
+    Returns:
+        True if the question should be skipped, False otherwise
+    """
+    task_id = dataset_record["task_id"]
+    
+    # Skip if in blacklist
+    if task_id in blacklist:
+        return True
+    
+    # Find existing result for this task
+    existing_result = next((r for r in results if r["task_id"] == task_id), None)
+    
+    if not existing_result:
+        return False
+    
+    # Skip if already answered correctly
+    if existing_result.get("is_correct"):
+        return True
+    
+    # Skip if already attempted a level 3 question incorrectly (too hard)
+    if not existing_result.get("is_correct") and dataset_record.get("Level") == 3:
+        return True
+    
+    # Skip if --skip flag is set and question was already processed
+    if args.skip:
+        return True
+    
+    return False
+
+
+def get_dataset_slice(full_dataset: List[Dict[str, Any]], args: argparse.Namespace) -> List[Dict[str, Any]]:
+    """Get the slice of dataset to process based on arguments.
+    
+    Args:
+        full_dataset: The full dataset
+        args: Command line arguments
+        
+    Returns:
+        Slice of dataset to process
+    """
+    if args.q is not None:
+        # Process specific task ID
+        return [record for record in full_dataset if record["task_id"] == args.q]
+    else:
+        # Process range
+        return full_dataset[args.start:args.end]
+
+
+def extract_answer_from_response(response_text: str) -> str | None:
+    """Extract answer from agent response.
+    
+    Args:
+        response_text: The full response text from the agent
+        
+    Returns:
+        Extracted answer or None if not found
+    """
+    match = re.search(ANSWER_REGEX, response_text)
+    return match.group(1) if match else None
+
+
+def update_results(results: List[Dict[str, Any]], new_result: Dict[str, Any]) -> None:
+    """Update results list with new result, replacing existing if present.
+    
+    Args:
+        results: List of results to update (modified in place)
+        new_result: New result to add or update
+    """
+    task_id = new_result["task_id"]
+    existing_index = next((i for i, r in enumerate(results) if r["task_id"] == task_id), None)
+    
+    if existing_index is not None:
+        results[existing_index] = new_result
+        logging.info(f"Updated existing record for task_id: {task_id}")
+    else:
+        results.append(new_result)
+        logging.info(f"Added new record for task_id: {task_id}")
+
+
+def process_question(dataset_record: Dict[str, Any], super_agent: Agent, 
+                     gaia_dataset_path: str, split: str) -> Dict[str, Any]:
+    """Process a single question from the dataset.
+    
+    Args:
+        dataset_record: The dataset record to process
+        super_agent: The agent to use for processing
+        gaia_dataset_path: Path to the GAIA dataset
+        split: Dataset split (validation/test)
+        
+    Returns:
+        Result dictionary with answer and correctness
+    """
+    task_id = dataset_record["task_id"]
+    
+    logging.info(f"Start to process: {task_id}")
+    logging.info(f"Question: {dataset_record['Question']}")
+    logging.info(f"Level: {dataset_record['Level']}")
+    logging.info(f"Tools: {dataset_record['Annotator Metadata']['Tools']}")
+    
+    # Prepare question with file paths
+    question = add_file_path(dataset_record, file_path=gaia_dataset_path, split=split)["Question"]
+    
+    # Run the agent
+    task = Task(input=question, agent=super_agent, conf=TaskConfig())
+    result = Runners.sync_run_task(task=task)
+    
+    # Extract answer from response
+    answer = extract_answer_from_response(result[task.id].answer)
+    
+    if answer:
+        correct_answer = dataset_record["Final answer"]
+        is_correct = question_scorer(answer, correct_answer)
+        
+        logging.info(f"Agent answer: {answer}")
+        logging.info(f"Correct answer: {correct_answer}")
+        logging.info(f"Result: {'Correct' if is_correct else 'Incorrect'}")
+        
+        return {
+            "task_id": task_id,
+            "level": dataset_record["Level"],
+            "question": question,
+            "answer": correct_answer,
+            "response": answer,
+            "is_correct": is_correct,
+        }
+    else:
+        logging.warning(f"No answer extracted from response for task_id: {task_id}")
+        return {
+            "task_id": task_id,
+            "level": dataset_record["Level"],
+            "question": question,
+            "answer": dataset_record["Final answer"],
+            "response": "",
+            "is_correct": False,
+        }
 
 
 if __name__ == "__main__":
     load_dotenv()
-    setup_logging()
+    args = parse_arguments()
+    ensure_workspace_exists()
+    setup_logging(args)
 
     gaia_dataset_path = os.getenv("GAIA_DATASET_PATH", "./gaia_dataset")
     full_dataset = load_dataset_meta(gaia_dataset_path, split=args.split)
     logging.info(f"Total questions: {len(full_dataset)}")
 
-    # Load MCP config only for the search sub-agent
-    search_mcp_config: dict = {}
-    available_servers: list[str] = []
-    try:
-        search_mcp_path = (
-            Path(__file__).parent
-            / "agent_collections"
-            / "search_agent"
-            / "mcp.json"
-        )
-        with open(search_mcp_path, mode="r", encoding="utf-8") as f:
-            search_mcp_config = json.loads(f.read())
-            available_servers = list(
-                server_name for server_name in search_mcp_config.get("mcpServers", {}).keys()
-            )
-            logging.info(f"🔧 Search MCP Available Servers: {available_servers}")
-    except json.JSONDecodeError as e:
-        logging.error(f"Error loading search agent mcp.json: {e}")
-        search_mcp_config = {}
-    except FileNotFoundError:
-        logging.warning("Search agent mcp.json not found; continuing without MCP servers for search agent")
-        search_mcp_config = {}
+    # Load MCP config and setup agents
+    mcp_config, mcp_servers = load_mcp_config()
+    agent_config = create_agent_config()
+    entry_agent = setup_agents(agent_config, mcp_config, mcp_servers)
 
-    agent_config = AgentConfig(
-        llm_provider=os.getenv("LLM_PROVIDER", "openai"),
-        llm_model_name=os.getenv("LLM_MODEL_NAME", "gpt-4o"),
-        llm_base_url=os.getenv("LLM_BASE_URL"),
-        llm_api_key=os.getenv("LLM_API_KEY"),
-        llm_temperature=os.getenv("LLM_TEMPERATURE", 0.0)
-    )
-    # Build search sub-agent that owns MCP tools
-    search_agent = Agent(
-        conf=agent_config,
-        name="gaia_search_agent",
-        agent_id="search_agent",
-        system_prompt=search_system_prompt,
-        mcp_config=search_mcp_config,
-        mcp_servers=available_servers,
-    )
-
-    # Main agent delegates to agents (no direct MCP tools)
-    super_agent = Agent(
-        conf=agent_config,
-        name="gaia_super_agent",
-        agent_id="gaia_super_agent_main",
-        system_prompt=system_prompt,
-        agent_names=[search_agent.id()],
-    )
-
-    # Register sub-agents to enable handoff (no explicit swarm execution needed)
-    Swarm.register_agent([search_agent])
-
-    # load results from the checkpoint file
-    if os.path.exists(os.getenv("AWORLD_WORKSPACE", "~") + "/results.json"):
-        with open(os.getenv("AWORLD_WORKSPACE", "~") + "/results.json", "r", encoding="utf-8") as results_f:
-            results: List[Dict[str, Any]] = json.load(results_f)
-    else:
-        results: List[Dict[str, Any]] = []
-
-    # load blacklist `task_id`
-    if args.blacklist_file_path and os.path.exists(args.blacklist_file_path):
-        with open(args.blacklist_file_path, "r", encoding="utf-8") as f:
-            blacklist = set(f.read().splitlines())
-    else:
-        blacklist = set()  # Empty set if file doesn't exist
+    # Load results and blacklist
+    results = load_results()
+    blacklist = load_blacklist(args.blacklist_file_path)
 
     try:
-        # slice dataset by args.start and args.end, overrided by args.q (single `task_id`)
-        dataset_slice = (
-            [dataset_record for idx, dataset_record in enumerate(full_dataset) if dataset_record["task_id"] in args.q]
-            if args.q is not None
-            else full_dataset[args.start : args.end]
-        )
+        # Get dataset slice to process
+        dataset_slice = get_dataset_slice(full_dataset, args)
+        logging.info(f"Processing {len(dataset_slice)} questions")
 
-        # main loop to execute questions
-        for i, dataset_i in enumerate(dataset_slice):
-            # specify `task_id`
-            if args.q and args.q != dataset_i["task_id"]:
+        # Process each question in the dataset slice
+        for dataset_record in dataset_slice:
+            # Skip if conditions are met (unless specific task_id requested)
+            if not args.q and should_skip_question(dataset_record, results, blacklist, args):
+                logging.info(f"Skipping task_id: {dataset_record['task_id']}")
                 continue
-            # only valid for args.q==None
-            if not args.q:
-                # blacklist
-                if dataset_i["task_id"] in blacklist:
-                    continue
 
-                # pass
-                if any(
-                    # Question Done and Correct
-                    (result["task_id"] == dataset_i["task_id"] and result["is_correct"])
-                    for result in results
-                ) or any(
-                    # Question Done and Incorrect, but Level is 3
-                    (result["task_id"] == dataset_i["task_id"] and not result["is_correct"] and dataset_i["Level"] == 3)
-                    for result in results
-                ):
-                    continue
-
-                # skip
-                if args.skip and any(
-                    # Question Done and Correct
-                    (result["task_id"] == dataset_i["task_id"])
-                    for result in results
-                ):
-                    continue
-
-            # run
+            # Process the question
             try:
-                logging.info(f"Start to process: {dataset_i['task_id']}")
-                logging.info(f"Detail: {dataset_i}")
-                logging.info(f"Question: {dataset_i['Question']}")
-                logging.info(f"Level: {dataset_i['Level']}")
-                logging.info(f"Tools: {dataset_i['Annotator Metadata']['Tools']}")
-
-                question = add_file_path(dataset_i, file_path=gaia_dataset_path, split=args.split)["Question"]
-
-                task = Task(input=question, agent=super_agent, conf=TaskConfig())
-                result = Runners.sync_run_task(task=task)
-
-                match = re.search(r"<answer>(.*?)</answer>", result[task.id].answer)
-                if match:
-                    answer = match.group(1)
-                    logging.info(f"Agent answer: {answer}")
-                    logging.info(f"Correct answer: {dataset_i['Final answer']}")
-
-                    if question_scorer(answer, dataset_i["Final answer"]):
-                        logging.info(f"Question {i} Correct!")
-                    else:
-                        logging.info("Incorrect!")
-
-                # Create the new result record
-                new_result = {
-                    "task_id": dataset_i["task_id"],
-                    "level": dataset_i["Level"],
-                    "question": question,
-                    "answer": dataset_i["Final answer"],
-                    "response": answer,
-                    "is_correct": question_scorer(answer, dataset_i["Final answer"]),
-                }
-
-                # Check if this task_id already exists in results
-                existing_index = next(
-                    (i for i, result in enumerate(results) if result["task_id"] == dataset_i["task_id"]),
-                    None,
-                )
-
-                if existing_index is not None:
-                    # Update existing record
-                    results[existing_index] = new_result
-                    logging.info(f"Updated existing record for task_id: {dataset_i['task_id']}")
-                else:
-                    # Append new record
-                    results.append(new_result)
-                    logging.info(f"Added new record for task_id: {dataset_i['task_id']}")
-
+                new_result = process_question(dataset_record, entry_agent, gaia_dataset_path, args.split)
+                update_results(results, new_result)
             except Exception:
-                logging.error(f"Error processing {i}: {traceback.format_exc()}")
+                logging.error(f"Error processing {dataset_record['task_id']}: {traceback.format_exc()}")
                 continue
+                
     except KeyboardInterrupt:
-        pass
+        logging.info("Interrupted by user")
     finally:
-        # report
+        # Report and save results
         report_results(results)
-        with open(os.getenv("AWORLD_WORKSPACE", "~") + "/results.json", "w", encoding="utf-8") as f:
-            json.dump(results, f, indent=4, ensure_ascii=False)
+        save_results(results)
