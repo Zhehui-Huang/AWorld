@@ -4,16 +4,20 @@ import logging
 import os
 import re
 import traceback
-from pathlib import Path
 from typing import Any, Dict, List
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 from aworld.agents.llm_agent import Agent
 from aworld.config.conf import AgentConfig, TaskConfig
 from aworld.core.task import Task
+from aworld.core.agent.swarm import Swarm
 from aworld.runner import Runners
 from examples.gaia.prompt import system_prompt
+from examples.gaia.agent_collections.search_agent.prompt import (
+    system_prompt as search_system_prompt,
+)
 from examples.gaia.utils import (
     add_file_path,
     load_dataset_meta,
@@ -95,28 +99,6 @@ def setup_logging(args: argparse.Namespace) -> None:
     logger.addHandler(file_handler)
 
 
-def load_mcp_config() -> tuple[Dict[str, Any], List[str]]:
-    """Load MCP configuration for the search agent.
-
-    Returns:
-        Tuple of (mcp_config dict, list of available server names)
-    """
-    entry_mcp_path = Path(__file__).parent / "mcp.json"
-
-    try:
-        with open(entry_mcp_path, mode="r", encoding="utf-8") as f:
-            mcp_config = json.load(f)
-            available_servers = list(mcp_config.get("mcpServers", {}).keys())
-            logging.info(f"🔧 Search MCP Available Servers: {available_servers}")
-            return mcp_config, available_servers
-    except json.JSONDecodeError as e:
-        logging.error(f"Error loading search agent mcp.json: {e}")
-        return {}, []
-    except FileNotFoundError:
-        logging.warning("Search agent mcp.json not found; continuing without MCP servers")
-        return {}, []
-
-
 def create_agent_config() -> AgentConfig:
     """Create agent configuration from environment variables."""
     return AgentConfig(
@@ -128,28 +110,56 @@ def create_agent_config() -> AgentConfig:
     )
 
 
-def setup_agents(agent_config: AgentConfig, mcp_config: Dict[str, Any], mcp_servers: List[str]) -> Agent:
-    """Set up the main agent and sub-agents.
-    
-    Args:
-        agent_config: Configuration for all agents
-        mcp_config: MCP configuration dictionary
-        mcp_servers: List of available MCP server names
-        
+def load_search_agent_mcp_config() -> tuple[Dict[str, Any], List[str]]:
+    """Load MCP configuration for the search agent wrapper only."""
+    config_path = Path(__file__).parent / "agent_collections" / "search_agent" / "mcp.json"
+    try:
+        with open(config_path, mode="r", encoding="utf-8") as f:
+            mcp_config = json.load(f)
+            servers = list(mcp_config.get("mcpServers", {}).keys())
+            logging.info(f"🔧 SearchAgent MCP servers: {servers}")
+            return mcp_config, servers
+    except json.JSONDecodeError as e:
+        logging.error(f"Error loading search_agent mcp.json: {e}")
+        return {}, []
+    except FileNotFoundError:
+        logging.warning("search_agent mcp.json not found; continuing without MCP servers")
+        return {}, []
+
+
+def setup_agents(agent_config: AgentConfig) -> Swarm:
+    """Set up the main agent and sub-agents as a swarm, without direct MCP usage.
+
+    Creates a search sub-agent wrapper and a super entry agent that delegates to it,
+    and returns a Swarm that registers the search agent so handoffs can find it.
+
     Returns:
-        The main super agent
+        Swarm containing the entry agent and registered search sub-agent
     """
-    # Create search sub-agent with MCP tools
+    # Create search sub-agent wrapper (no direct MCP configuration here)
+    mcp_config, mcp_servers = load_search_agent_mcp_config()
+
+    search_agent = Agent(
+        conf=agent_config,
+        name="search_agent",
+        agent_id="search_agent",
+        system_prompt=search_system_prompt,
+        mcp_config=mcp_config,
+        mcp_servers=mcp_servers,
+    )
+
+    # Create main agent that delegates to the search agent
     entry_agent = Agent(
         conf=agent_config,
         name="entry_agent",
         agent_id="entry_agent",
         system_prompt=system_prompt,
-        mcp_config=mcp_config,
-        mcp_servers=mcp_servers,
+        agent_names=[search_agent.id()],
     )
-    
-    return entry_agent
+
+    # Build a swarm with entry agent, and register search_agent so runner can handoff
+    swarm = Swarm(entry_agent, register_agents=[search_agent])
+    return swarm
 
 
 def load_results() -> List[Dict[str, Any]]:
@@ -272,13 +282,13 @@ def update_results(results: List[Dict[str, Any]], new_result: Dict[str, Any]) ->
         logging.info(f"Added new record for task_id: {task_id}")
 
 
-def process_question(dataset_record: Dict[str, Any], super_agent: Agent, 
+def process_question(dataset_record: Dict[str, Any], swarm: Swarm, 
                      gaia_dataset_path: str, split: str) -> Dict[str, Any]:
     """Process a single question from the dataset.
     
     Args:
         dataset_record: The dataset record to process
-        super_agent: The agent to use for processing
+        swarm: The swarm containing the entry agent and registered sub-agents
         gaia_dataset_path: Path to the GAIA dataset
         split: Dataset split (validation/test)
         
@@ -295,8 +305,8 @@ def process_question(dataset_record: Dict[str, Any], super_agent: Agent,
     # Prepare question with file paths
     question = add_file_path(dataset_record, file_path=gaia_dataset_path, split=split)["Question"]
     
-    # Run the agent
-    task = Task(input=question, agent=super_agent, conf=TaskConfig())
+    # Run using the swarm (ensures registered sub-agents are available for handoff)
+    task = Task(input=question, swarm=swarm, conf=TaskConfig())
     result = Runners.sync_run_task(task=task)
     
     # Extract answer from response
@@ -340,10 +350,9 @@ if __name__ == "__main__":
     full_dataset = load_dataset_meta(gaia_dataset_path, split=args.split)
     logging.info(f"Total questions: {len(full_dataset)}")
 
-    # Load MCP config and setup agents
-    mcp_config, mcp_servers = load_mcp_config()
+    # Setup agents via agent wrappers (no direct MCP usage)
     agent_config = create_agent_config()
-    entry_agent = setup_agents(agent_config, mcp_config, mcp_servers)
+    swarm = setup_agents(agent_config)
 
     # Load results and blacklist
     results = load_results()
@@ -363,10 +372,11 @@ if __name__ == "__main__":
 
             # Process the question
             try:
-                new_result = process_question(dataset_record, entry_agent, gaia_dataset_path, args.split)
+                new_result = process_question(dataset_record, swarm, gaia_dataset_path, args.split)
                 update_results(results, new_result)
-            except Exception:
-                logging.error(f"Error processing {dataset_record['task_id']}: {traceback.format_exc()}")
+            except Exception as e:
+                logging.error(f"Error processing {dataset_record['task_id']}: {str(e)}")
+                logging.error(f"Full traceback: {traceback.format_exc()}")
                 continue
                 
     except KeyboardInterrupt:
