@@ -1,0 +1,14 @@
+{
+    "mcpServers": {
+        "pdf": {
+            "command": "python",
+            "args": [
+                "-m",
+                "examples.gaia.agent_collections.pdf_agent.mcp_tools.pdf"
+            ],
+            "env": {
+            },
+            "client_session_timeout_seconds": 9999.0
+        }
+    }
+}
