@@ -138,11 +138,10 @@ def example_1_arxiv_paper_search_and_summarize():
     main_agent = create_main_agent(mcp_config)
     
     # Define complex task
-    task_prompt = """Find and download a paper on arXiv that was published before August 2020 about attention mechanisms in transformers or neural machine translation.  
-Then, extract the content from the PDF and provide a comprehensive summary of approximately 100 words that covers:
+    task_prompt = """Find two papers on arXiv that were published before August 2020 about attention mechanisms in transformers.  
+Then, extract the content from the PDFs and provide a comprehensive summary of approximately 100 words that covers:
 The main research question and motivation
-
-Be thorough and ensure you actually complete all steps: search, download, extract, and summarize."""
+"""
     
     print("\n📋 Task:")
     print(task_prompt)
