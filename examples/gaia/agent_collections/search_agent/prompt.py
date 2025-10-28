@@ -19,7 +19,6 @@ Workflow:
 5) Verify: Confirm download succeeded and file path is correct.
 6) Return: Provide complete information including:
    - What you found (paper title, authors, etc.)
-   - What actions you took (downloaded file)
    - File path where file was saved
    - Any other relevant details
 
