@@ -1,0 +1,17 @@
+{
+    "mcpServers": {
+        "image": {
+            "command": "python",
+            "args": [
+                "-m",
+                "examples.gaia.agent_collections.image_agent.mcp_tools.image"
+            ],
+            "env": {
+                "IMAGE_LLM_MODEL_NAME": "${IMAGE_LLM_MODEL_NAME}",
+                "IMAGE_LLM_API_KEY": "${IMAGE_LLM_API_KEY}",
+                "IMAGE_LLM_BASE_URL": "${IMAGE_LLM_BASE_URL}"
+            },
+            "client_session_timeout_seconds": 1000.0
+        }
+    }
+}

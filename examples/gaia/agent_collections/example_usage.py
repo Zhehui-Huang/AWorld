@@ -142,6 +142,8 @@ def example_1_arxiv_paper_search_and_summarize():
 Then, extract the content from the PDFs and provide a comprehensive summary of approximately 100 words that covers:
 The main research question and motivation
 """
+    # task_prompt = """A paper about AI regulation that was originally submitted to arXiv.org in June 2022 shows a figure with three axes, where each axis has a label word at both ends. Which of these words is used to describe a type of society in a Physics and Society article submitted to arXiv.org on August 11, 2016?
+    # """
     
     print("\n📋 Task:")
     print(task_prompt)
