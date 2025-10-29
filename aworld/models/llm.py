@@ -108,6 +108,10 @@ class LLMModel:
         if not conf:
             return {}
 
+        # Extract llm_config if AgentConfig is passed
+        if type(conf).__name__ == 'AgentConfig':
+            conf = conf.llm_config
+
         # Get all parameters from conf
         if type(conf).__name__ == 'ModelConfig':
             conf_dict = conf.model_dump()

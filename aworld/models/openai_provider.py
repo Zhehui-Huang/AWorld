@@ -429,9 +429,13 @@ class OpenAIProvider(LLMProviderBase):
             "model": kwargs.get("model_name", self.model_name or ""),
             "messages": messages,
             "temperature": temperature,
-            "max_tokens": max_tokens,
-            "stop": stop
+            # "max_tokens": max_tokens,
+            # "stop": stop
         }
+        if max_tokens is not None:
+            openai_params["max_tokens"] = max_tokens
+        if stop is not None:
+            openai_params["stop"] = stop
 
         supported_params = [
             "max_completion_tokens", "meta_data", "modalities", "n", "parallel_tool_calls",

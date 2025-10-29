@@ -5,14 +5,12 @@ This script demonstrates how to use the Image Agent MCP Server
 to create dynamic multi-layer agent architectures for image processing.
 
 Tests included:
-- Example 1-5: Basic usage patterns (create, reuse, hierarchical, capabilities, direct usage)
-- Example 6: Test all individual MCP tools (metadata extraction, OCR, AI analysis) with image_0.png
-- Example 7: Create a full image agent to comprehensively analyze image_0.png
-- Example 8: Test agent reuse functionality with multiple sequential tasks
+- Example 1: Basic usage patterns (create, reuse, hierarchical, capabilities, direct usage)
 
 The script automatically tests all MCP tools available to the image agent:
 1. mcp_get_image_metadata: Extract technical metadata (dimensions, format, size, etc.)
 2. mcp_extract_text_ocr: Extract text from images using Tesseract OCR with preprocessing
+3. mcp_analyze_image_ai: AI-powered image analysis using vision models
 """
 
 import json
@@ -64,13 +62,12 @@ def example_1_create_image_agent():
     
     # Task that requires image processing
     task_prompt = f"""
-    I need to extract text from the image at path: {image_path}
+    I need to analyze the image at path: {image_path}
     
     Please use the available MCP tools to:
-    1. Get the image metadata (dimensions, format, size)
-    2. Extract any text from the image using OCR
+    1. Perform AI analysis of the image content
     
-    Provide a comprehensive summary of what you found.
+    Provide a comprehensive summary of what you found from all three operations.
     """
 
     task = Task(
@@ -89,7 +86,6 @@ def example_1_create_image_agent():
         print(f"\nAnswer:\n{result.answer}")
     else:
         print("\n⚠️ Task completed but no answer was generated")
-
 
 
 def main():
@@ -140,4 +136,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
