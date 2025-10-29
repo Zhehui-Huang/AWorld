@@ -1,13 +1,15 @@
 """
 PDF Agent MCP Server
 
-This module provides MCP server functionality for processing PDF documents.
-It supports PDF content extraction, text analysis, and returns LLM-friendly formatted results.
+This module provides MCP server functionality for processing PDF documents and images.
+It supports PDF content extraction, text analysis, image processing, and returns LLM-friendly formatted results.
 
 Key features:
 - Extract text content from PDF documents
 - Extract images and media from PDFs
-- Support for OCR when needed
+- Support for OCR when needed (documents and standalone images)
+- AI-powered image analysis using vision models
+- Image metadata extraction
 - Format output for LLM consumption
 - Save extracted content to files
 
@@ -15,6 +17,11 @@ Main functions:
 - mcp_create_pdf_agent: Create PDF agent
 - mcp_use_existing_pdf_agent: Use existing PDF agent
 - mcp_get_pdf_agent_capabilities: Returns information about PDF agent service capabilities
+
+Image tools available:
+- mcp_extract_text_ocr: Extract text from images using OCR
+- mcp_analyze_image_ai: Analyze image content using AI vision models
+- mcp_get_image_metadata: Extract technical metadata from images
 """
 
 import json
@@ -405,15 +412,17 @@ class PDFAgentCollection(ActionCollection):
 
         capabilities = {
             "service_name": "PDF Agent MCP Server",
-            "version": "1.0.0",
-            "description": "Dynamic multi-layer agent architecture for PDF processing and analysis tasks",
+            "version": "1.1.0",
+            "description": "Dynamic multi-layer agent architecture for PDF and image processing and analysis tasks",
             "features": [
                 "Create independent PDF agents with dedicated LLM and memory",
                 "Reuse existing agents across multiple tasks",
                 "Autonomous task execution with think-act-observe loop",
                 "PDF content extraction using marker package",
                 "Image and media extraction from PDFs",
-                "OCR support for scanned documents",
+                "OCR support for scanned documents and images",
+                "AI-powered image analysis and reasoning using vision models",
+                "Image metadata extraction (dimensions, format, file size)",
                 "LLM-optimized result formatting",
                 "Agent registry for managing multiple agent instances",
             ],

@@ -1,33 +1,48 @@
 """
-Dynamic Multi-Agent Workflow Example
+Dynamic Multi-Agent Workflow Example - Version 2 (Hierarchical Orchestration)
 
-This example demonstrates how a main agent can dynamically use specialized sub-agents 
-(Search Agent and PDF Agent) to complete complex tasks that require multiple capabilities.
+This example demonstrates Version 2 of the orchestration framework with support for:
+- Multi-level hierarchical orchestration
+- Recursive orchestrator agents
+- Automatic sub-orchestrator creation for complex multi-agent sub-tasks
+- Parallel execution of independent sub-orchestrators
+- Dynamic agent coordination at multiple levels
 
 Example Task:
-"Find a paper on arXiv from August 2020 about attention mechanisms in transformers, 
-download the file, and extract and summarize it using 1000 words."
+"A paper about AI regulation that was originally submitted to arXiv.org in June 2022 shows
+a figure with three axes, where each axis has a label word at both ends. Which of these words
+is used to describe a type of society in a Physics and Society article submitted to arXiv.org
+on August 11, 2016?"
 
-Architecture:
-    Main Agent (Orchestrator)
-        ├─> Search Agent (for finding and downloading papers)
-        │   ├─> LLM Instance
-        │   ├─> Memory Module
-        │   └─> MCP Tools (search, download)
+Architecture (Version 2 - Hierarchical):
+    Main Orchestrator (Level 0)
         │
-        └─> PDF Agent (for extracting and analyzing papers)
-            ├─> LLM Instance
-            ├─> Memory Module
-            └─> MCP Tools (pdf extraction)
+        ├─> Sub-Orchestrator 1 (Level 1) - Phase 1: Extract axis labels from June 2022 paper
+        │   ├─> Search Agent (find and download paper)
+        │   ├─> PDF Agent (extract figures)
+        │   └─> Image Agent (analyze figure, extract labels)
+        │
+        └─> Sub-Orchestrator 2 (Level 1) - Phase 2: Find society word in August 2016 paper
+            ├─> Search Agent (find specific paper by date)
+            └─> PDF Agent (search for label words in context)
+
+Key Improvements Over V1:
+1. **Hierarchical Decomposition**: Complex tasks automatically decompose into sub-orchestrators
+2. **Reduced Cognitive Load**: Each orchestrator manages fewer agents at its level
+3. **Better Parallelism**: Independent sub-orchestrators can run in parallel
+4. **Recursive Orchestration**: Unlimited nesting depth for complex workflows
+5. **Improved Modularity**: Each orchestrator focuses on its specific sub-task
+6. **Error Isolation**: Failures in one sub-orchestrator don't affect others
 
 Workflow:
-1. Main Agent receives complex task
-2. Main Agent delegates search task to Search Agent
-3. Search Agent finds paper on arXiv and downloads it
-4. Main Agent receives download location
-5. Main Agent delegates PDF analysis to PDF Agent
-6. PDF Agent extracts and summarizes content
-7. Main Agent returns final result to user
+1. Main Orchestrator analyzes the task
+2. Identifies two major phases requiring multiple agents each
+3. Creates Sub-Orchestrator 1 for Phase 1 (multi-agent coordination)
+4. Sub-Orchestrator 1 internally manages: search → pdf → image agents
+5. Main Orchestrator receives axis labels
+6. Creates Sub-Orchestrator 2 for Phase 2
+7. Sub-Orchestrator 2 internally manages: search → pdf agents
+8. Main Orchestrator synthesizes final answer
 """
 
 import json
@@ -42,34 +57,34 @@ from dotenv import load_dotenv
 from aworld.agents.llm_agent import Agent
 from aworld.config.conf import AgentConfig, TaskConfig
 from aworld.core.task import Task
-from aworld.logs.util import Color, logger
 from aworld.runner import Runners
 from examples.gaia.agent_collections.prompt import system_prompt
 
 
-def load_mcp_config() -> Dict[str, Any]:
-    """Load MCP configuration that includes both search_agent and pdf_agent."""
+def load_mcp_config_v2() -> Dict[str, Any]:
+    """Load MCP configuration V2 that includes orchestrator_agent."""
     try:
-        mcp_path = Path(__file__).parent.parent / "mcp.json"
+        mcp_path = Path(__file__).parent / "mcp.json"
         with open(mcp_path, mode="r", encoding="utf-8") as f:
             mcp_config = json.loads(f.read())
-            print(f"✅ Loaded MCP servers: {list(mcp_config.get('mcpServers', {}).keys())}")
+            available_servers = list(mcp_config.get("mcpServers", {}).keys())
+            print(f"✅ Loaded MCP V2 servers: {available_servers}")
             return mcp_config
     except Exception as e:
-        print(f"❌ Error loading mcp.json: {e}")
+        print(f"❌ Error loading mcp_v2.json: {e}")
         return {}
 
 
-def create_main_agent(mcp_config: Dict[str, Any]) -> Agent:
-    """Create main orchestrator agent with access to both sub-agents."""
-    
+def create_main_orchestrator_v2(mcp_config: Dict[str, Any]) -> Agent:
+    """Create main orchestrator agent V2 with access to sub-orchestrators."""
+
     # Load LLM configuration from environment variables
     llm_provider = os.getenv("LLM_PROVIDER", "openai")
     llm_model_name = os.getenv("LLM_MODEL_NAME", "gpt-4o")
     llm_base_url = os.getenv("LLM_BASE_URL")
     llm_api_key = os.getenv("LLM_API_KEY")
     llm_temperature = float(os.getenv("LLM_TEMPERATURE", "0.0"))
-    
+
     # Create agent configuration
     agent_config = AgentConfig(
         llm_provider=llm_provider,
@@ -78,43 +93,47 @@ def create_main_agent(mcp_config: Dict[str, Any]) -> Agent:
         llm_api_key=llm_api_key,
         llm_temperature=llm_temperature,
     )
-    
 
-    # Get available MCP servers
+    # Get available MCP servers (including orchestrator_agent for recursion)
     available_servers = list(mcp_config.get("mcpServers", {}).keys())
-    
-    # Create main agent with MCP tools for both sub-agents
+
+    # Create main agent with V2 MCP tools (includes orchestrator_agent)
     agent = Agent(
         conf=agent_config,
-        name="main_orchestrator_agent",
-        agent_id=f"main_agent_{uuid.uuid4().hex[:8]}",
+        name="main_orchestrator_v2",
+        agent_id=f"main_orchestrator_v2_{uuid.uuid4().hex[:8]}",
         system_prompt=system_prompt,
         mcp_config=mcp_config,
         mcp_servers=available_servers,
     )
-    
-    print(f"✅ Created main orchestrator agent with access to: {available_servers}")
-    
+
+    print(f"✅ Created main orchestrator V2 with access to: {available_servers}")
+
     return agent
 
 
-def example_1_arxiv_paper_search_and_summarize():
+def example_1_hierarchical_paper_analysis():
     """
-    Example 1: Complete workflow - Find arXiv paper, download, and summarize
-    
-    This demonstrates the full pipeline:
-    1. Main agent receives complex task
-    2. Main agent delegates to search agent (find and download paper)
-    3. Main agent delegates to PDF agent (extract and summarize)
-    4. Main agent returns comprehensive result
+    Example 1: Hierarchical Orchestration - AI Regulation Paper Analysis
+
+    This demonstrates the full V2 hierarchical orchestration:
+    1. Main orchestrator receives complex multi-phase task
+    2. Creates sub-orchestrator for Phase 1 (find paper + extract figure + analyze labels)
+    3. Sub-orchestrator 1 internally coordinates: search → pdf → image agents
+    4. Main orchestrator receives extracted labels
+    5. Creates sub-orchestrator for Phase 2 (find paper + search for society word)
+    6. Sub-orchestrator 2 internally coordinates: search → pdf agents
+    7. Main orchestrator synthesizes final answer
+
+    This shows how V2 automatically handles multi-level orchestration.
     """
     print("\n" + "=" * 100)
-    print("Example 1: Find arXiv Paper, Download, Extract, and Summarize")
+    print("Example 1: Hierarchical Multi-Agent Orchestration (V2)")
     print("=" * 100)
-    
+
     # Load environment variables
     load_dotenv()
-    
+
     # Verify required environment variables
     required_vars = ["LLM_API_KEY", "GOOGLE_API_KEY", "GOOGLE_CSE_ID"]
     missing_vars = [var for var in required_vars if not os.getenv(var)]
@@ -122,50 +141,154 @@ def example_1_arxiv_paper_search_and_summarize():
         print(f"❌ Missing required environment variables: {missing_vars}")
         print("Please set these variables in your .env file or environment")
         return
-    
+
     # Set workspace
     workspace = os.getenv("AWORLD_WORKSPACE", str(Path.home()))
     print(f"📁 Workspace: {workspace}")
-    
-    # Load MCP configuration
-    mcp_config = load_mcp_config()
+
+    # Load MCP V2 configuration
+    mcp_config = load_mcp_config_v2()
     if not mcp_config:
-        print("❌ Failed to load MCP configuration")
+        print("❌ Failed to load MCP V2 configuration")
         return
-    
-    # Create main orchestrator agent
-    print("\n🤖 Creating main orchestrator agent...")
-    main_agent = create_main_agent(mcp_config)
-    
-    # Define complex task
-    task_prompt = """Find two papers on arXiv that were published before August 2020 about attention mechanisms in transformers.  
-Then, extract the content from the PDFs and provide a comprehensive summary of approximately 100 words that covers:
-The main research question and motivation
-"""
-    # task_prompt = """A paper about AI regulation that was originally submitted to arXiv.org in June 2022 shows a figure with three axes, where each axis has a label word at both ends. Which of these words is used to describe a type of society in a Physics and Society article submitted to arXiv.org on August 11, 2016?
-    # """
-    
+
+    # Create main orchestrator V2
+    print("\n🎭 Creating main orchestrator V2 (with sub-orchestrator capability)...")
+    main_agent = create_main_orchestrator_v2(mcp_config)
+
+    # Define complex task that benefits from hierarchical orchestration
+    task_prompt = """A paper about AI regulation that was originally submitted to arXiv.org in June 2022 shows a figure with three axes, where each axis has a label word at both ends. Which of these words is used to describe a type of society in a Physics and Society article submitted to arXiv.org on August 11, 2016?
+
+This task has two major phases:
+1. Find the June 2022 AI regulation paper, extract the three-axis figure, and identify all six axis-end labels
+2. Search the August 11, 2016 Physics and Society paper to find which label word describes a type of society
+
+Each phase requires multiple specialized agents working together."""
+
     print("\n📋 Task:")
     print(task_prompt)
-    print("\n🚀 Executing workflow...\n")
-    
+    print("\n🚀 Executing hierarchical orchestration workflow...\n")
+    print("Expected behavior:")
+    print("  → Main orchestrator analyzes task structure")
+    print("  → Creates sub-orchestrator for Phase 1 (search + pdf + image)")
+    print("  → Sub-orchestrator 1 coordinates multi-agent workflow internally")
+    print("  → Main orchestrator receives axis labels")
+    print("  → Creates sub-orchestrator for Phase 2 (search + pdf)")
+    print("  → Sub-orchestrator 2 searches for society word")
+    print("  → Main orchestrator synthesizes final answer\n")
+
     # Create and run task
     task = Task(
         id=str(uuid.uuid4().hex),
         input=task_prompt,
         agent=main_agent,
-        conf=TaskConfig(max_steps=30),  # More steps for complex workflow
+        conf=TaskConfig(max_steps=40),  # More steps for hierarchical coordination
     )
-    
+
     # Execute task
     result_map = Runners.sync_run_task(task=task)
     task_response = result_map.get(task.id) if result_map else None
-    
+
     # Display results
     print("\n" + "=" * 100)
-    print("📊 Results")
+    print("📊 Results - Hierarchical Orchestration V2")
     print("=" * 100)
-    
+
+    if task_response and task_response.answer:
+        print("\n✅ Task completed successfully!\n")
+        print("🎯 Final Answer:")
+        print(task_response.answer)
+    else:
+        print("\n⚠️ Task completed but no answer was generated")
+        if task_response:
+            print(f"Status: {task_response}")
+
+    print("\n" + "=" * 100)
+
+
+def example_2_parallel_orchestrators():
+    """
+    Example 2: Parallel Sub-Orchestrators
+
+    This demonstrates parallel execution of multiple independent sub-orchestrators.
+
+    Task: "Find and summarize two papers: one about transformers from 2020 and
+    one about GPT from 2021. Compare their approaches."
+
+    Workflow:
+    1. Main orchestrator identifies two independent sub-tasks
+    2. Creates TWO sub-orchestrators in parallel (one step)
+    3. Sub-orchestrator 1: Handles 2020 transformer paper (search + pdf)
+    4. Sub-orchestrator 2: Handles 2021 GPT paper (search + pdf)
+    5. Main orchestrator compares and synthesizes results
+    """
+    print("\n" + "=" * 100)
+    print("Example 2: Parallel Sub-Orchestrators (V2)")
+    print("=" * 100)
+
+    # Load environment variables
+    load_dotenv()
+
+    # Verify required environment variables
+    required_vars = ["LLM_API_KEY", "GOOGLE_API_KEY", "GOOGLE_CSE_ID"]
+    missing_vars = [var for var in required_vars if not os.getenv(var)]
+    if missing_vars:
+        print(f"❌ Missing required environment variables: {missing_vars}")
+        return
+
+    # Set workspace
+    workspace = os.getenv("AWORLD_WORKSPACE", str(Path.home()))
+    print(f"📁 Workspace: {workspace}")
+
+    # Load MCP V2 configuration
+    mcp_config = load_mcp_config_v2()
+    if not mcp_config:
+        print("❌ Failed to load MCP V2 configuration")
+        return
+
+    # Create main orchestrator V2
+    print("\n🎭 Creating main orchestrator V2...")
+    main_agent = create_main_orchestrator_v2(mcp_config)
+
+    # Define task with parallel sub-tasks
+    task_prompt = """Find and analyze TWO papers:
+1. A paper about attention mechanisms in transformers from 2020 on arXiv
+2. A paper about GPT models from 2021 on arXiv
+
+For each paper:
+- Find and download it
+- Extract and summarize the key methodology (100 words)
+
+Then compare their approaches and highlight key differences.
+
+Note: These are independent tasks that can be handled in parallel."""
+
+    print("\n📋 Task:")
+    print(task_prompt)
+    print("\n🚀 Executing parallel orchestration workflow...\n")
+    print("Expected behavior:")
+    print("  → Main orchestrator identifies two independent sub-tasks")
+    print("  → Creates two sub-orchestrators in parallel (same step)")
+    print("  → Each sub-orchestrator handles its paper independently")
+    print("  → Main orchestrator compares results\n")
+
+    # Create and run task
+    task = Task(
+        id=str(uuid.uuid4().hex),
+        input=task_prompt,
+        agent=main_agent,
+        conf=TaskConfig(max_steps=35),
+    )
+
+    # Execute task
+    result_map = Runners.sync_run_task(task=task)
+    task_response = result_map.get(task.id) if result_map else None
+
+    # Display results
+    print("\n" + "=" * 100)
+    print("📊 Results - Parallel Orchestration")
+    print("=" * 100)
+
     if task_response and task_response.answer:
         print("\n✅ Task completed successfully!\n")
         print(task_response.answer)
@@ -173,37 +296,145 @@ The main research question and motivation
         print("\n⚠️ Task completed but no answer was generated")
         if task_response:
             print(f"Status: {task_response}")
-    
+
     print("\n" + "=" * 100)
 
+
+def example_3_direct_vs_hierarchical():
+    """
+    Example 3: Comparison - Direct Agent Management vs Hierarchical
+
+    This demonstrates when to use direct agent management vs sub-orchestrators.
+
+    Simple Task: "Find a paper about BERT and summarize it"
+    - Only needs: search → pdf (2 agents, simple sequence)
+    - V2 orchestrator should use agents DIRECTLY (no sub-orchestrator needed)
+
+    This shows that V2 is smart about when to create sub-orchestrators.
+    """
+    print("\n" + "=" * 100)
+    print("Example 3: Direct Agent Management (V2 - No Sub-Orchestrator Needed)")
+    print("=" * 100)
+
+    # Load environment variables
+    load_dotenv()
+
+    # Verify required environment variables
+    required_vars = ["LLM_API_KEY", "GOOGLE_API_KEY", "GOOGLE_CSE_ID"]
+    missing_vars = [var for var in required_vars if not os.getenv(var)]
+    if missing_vars:
+        print(f"❌ Missing required environment variables: {missing_vars}")
+        return
+
+    # Set workspace
+    workspace = os.getenv("AWORLD_WORKSPACE", str(Path.home()))
+    print(f"📁 Workspace: {workspace}")
+
+    # Load MCP V2 configuration
+    mcp_config = load_mcp_config_v2()
+    if not mcp_config:
+        print("❌ Failed to load MCP V2 configuration")
+        return
+
+    # Create main orchestrator V2
+    print("\n🎭 Creating main orchestrator V2...")
+    main_agent = create_main_orchestrator_v2(mcp_config)
+
+    # Define simple task that doesn't need sub-orchestrator
+    task_prompt = """Find a paper about BERT (Bidirectional Encoder Representations from Transformers) 
+from 2018 on arXiv, download it, and provide a 100-word summary of the main contribution.
+
+This is a straightforward sequential task: search for paper, then summarize it."""
+
+    print("\n📋 Task:")
+    print(task_prompt)
+    print("\n🚀 Executing workflow...\n")
+    print("Expected behavior:")
+    print("  → Main orchestrator recognizes this is a simple sequential task")
+    print("  → Uses search_agent directly (find + download)")
+    print("  → Uses pdf_agent directly (summarize)")
+    print("  → No sub-orchestrator created (not complex enough)\n")
+
+    # Create and run task
+    task = Task(
+        id=str(uuid.uuid4().hex),
+        input=task_prompt,
+        agent=main_agent,
+        conf=TaskConfig(max_steps=25),
+    )
+
+    # Execute task
+    result_map = Runners.sync_run_task(task=task)
+    task_response = result_map.get(task.id) if result_map else None
+
+    # Display results
+    print("\n" + "=" * 100)
+    print("📊 Results - Direct Agent Management")
+    print("=" * 100)
+
+    if task_response and task_response.answer:
+        print("\n✅ Task completed successfully!\n")
+        print(task_response.answer)
+    else:
+        print("\n⚠️ Task completed but no answer was generated")
+        if task_response:
+            print(f"Status: {task_response}")
+
+    print("\n" + "=" * 100)
+
+
 def main():
-    """Main entry point - run examples."""
+    """Main entry point - run V2 orchestration examples."""
     print("""
 ╔════════════════════════════════════════════════════════════════════════════╗
 ║                                                                            ║
-║           Dynamic Multi-Agent Workflow Examples                           ║
+║         Hierarchical Multi-Agent Orchestration Examples (V2)              ║
 ║                                                                            ║
-║  Demonstrates how a main agent orchestrates specialized sub-agents        ║
-║  (Search Agent and PDF Agent) to complete complex tasks                   ║
+║  Demonstrates recursive orchestrators that create sub-orchestrators       ║
+║  for complex multi-agent workflows with automatic task decomposition      ║
+║                                                                            ║
+║  Key Features:                                                            ║
+║    • Multi-level hierarchical orchestration                               ║
+║    • Recursive orchestrator agents                                        ║
+║    • Automatic sub-orchestrator creation                                  ║
+║    • Parallel execution of independent sub-orchestrators                  ║
+║    • Smart decision-making (when to use sub-orchestrators)                ║
 ║                                                                            ║
 ╚════════════════════════════════════════════════════════════════════════════╝
 """)
-    
+
     examples = {
-        "1": ("Find arXiv Paper and Summarize (Full Workflow)", example_1_arxiv_paper_search_and_summarize),
+        "1": ("Hierarchical Multi-Agent Task (AI Regulation Paper)", example_1_hierarchical_paper_analysis),
+        # "2": ("Parallel Sub-Orchestrators (Two Papers)", example_2_parallel_orchestrators),
+        # "3": ("Direct Agent Management (Simple Task)", example_3_direct_vs_hierarchical),
     }
-    
+
     print("Available Examples:")
     for key, (description, _) in examples.items():
         print(f"  {key}. {description}")
+    print("  a. Run all examples")
     print("  q. Quit")
-    
+
     while True:
         print("\n" + "-" * 80)
-        choice = input("\nSelect an example (1-4) or 'q' to quit: ").strip().lower()
-        
+        choice = input("\nSelect an example (1-3, 'a' for all, 'q' to quit): ").strip().lower()
+
         if choice == 'q':
             print("\n👋 Goodbye!")
+            break
+        elif choice == 'a':
+            print("\n🚀 Running all examples...\n")
+            for _, example_func in examples.values():
+                try:
+                    example_func()
+                except KeyboardInterrupt:
+                    print("\n\n⚠️ Interrupted by user")
+                    break
+                except Exception as e:
+                    print(f"\n❌ Error running example: {e}")
+                    import traceback
+
+                    traceback.print_exc()
             break
         elif choice in examples:
             _, example_func = examples[choice]
@@ -215,9 +446,10 @@ def main():
             except Exception as e:
                 print(f"\n❌ Error running example: {e}")
                 import traceback
+
                 traceback.print_exc()
         else:
-            print("❌ Invalid choice. Please select 1-4 or 'q'")
+            print("❌ Invalid choice. Please select 1-3, 'a', or 'q'")
 
 
 if __name__ == "__main__":

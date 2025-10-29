@@ -1,7 +1,16 @@
 """
 Example usage of PDF Agent MCP Server
 
-This script demonstrates how to use the PDF agent for document processing tasks.
+This script demonstrates how to use the PDF agent for document and image processing tasks.
+
+Features demonstrated:
+- PDF text extraction
+- PDF image extraction
+- OCR for scanned documents
+- Image text extraction using OCR
+- AI-powered image analysis using vision models
+- Image metadata extraction
+- Combining PDF and image processing
 """
 
 import os
@@ -245,6 +254,146 @@ def example_7_complex_analysis():
     print(f"Message:\n{result.message}")
 
 
+def example_8_image_ocr():
+    """Example 8: Extract text from an image using OCR."""
+    print("\n" + "=" * 80)
+    print("Example 8: Extract text from image using OCR")
+    print("=" * 80)
+
+    args = ActionArguments(
+        name="pdf_agent_service",
+        transport="stdio",
+        workspace=os.getenv("AWORLD_WORKSPACE", "~"),
+    )
+
+    service = PDFAgentCollection(args)
+
+    task_prompt = """
+    Extract all text from the image located at '/path/to/image.png' using OCR.
+    The image contains a document or text. What does it say?
+    """
+
+    result = service.mcp_create_pdf_agent(
+        task_prompt=task_prompt,
+        name="image_ocr_agent",
+        description="Agent for extracting text from images",
+        max_steps=8,
+    )
+
+    print("\n--- Result ---")
+    print(f"Success: {result.success}")
+    print(f"Message:\n{result.message}")
+
+
+def example_9_image_ai_analysis():
+    """Example 9: Analyze image content using AI vision models."""
+    print("\n" + "=" * 80)
+    print("Example 9: Analyze image with AI vision")
+    print("=" * 80)
+
+    args = ActionArguments(
+        name="pdf_agent_service",
+        transport="stdio",
+        workspace=os.getenv("AWORLD_WORKSPACE", "~"),
+    )
+
+    service = PDFAgentCollection(args)
+
+    task_prompt = """
+    Analyze the image at '/path/to/chart.jpg'.
+    This is a chart or graph. Describe what the chart shows, including:
+    - Type of chart (bar, line, pie, etc.)
+    - What data is being displayed
+    - Any trends or patterns visible
+    - Key insights from the visualization
+    """
+
+    result = service.mcp_create_pdf_agent(
+        task_prompt=task_prompt,
+        name="image_analyzer_agent",
+        description="Agent for analyzing images with AI vision",
+        max_steps=10,
+    )
+
+    print("\n--- Result ---")
+    print(f"Success: {result.success}")
+    print(f"Message:\n{result.message}")
+
+
+def example_10_pdf_with_image_analysis():
+    """Example 10: Extract images from PDF and analyze them."""
+    print("\n" + "=" * 80)
+    print("Example 10: Extract PDF images and analyze with AI")
+    print("=" * 80)
+
+    args = ActionArguments(
+        name="pdf_agent_service",
+        transport="stdio",
+        workspace=os.getenv("AWORLD_WORKSPACE", "~"),
+    )
+
+    service = PDFAgentCollection(args)
+
+    task_prompt = """
+    Process the PDF at '/path/to/report_with_charts.pdf'.
+    
+    1. Extract images from the PDF
+    2. For each chart/diagram image extracted:
+       - Analyze what the chart represents using AI vision
+       - Extract any text labels using OCR if needed
+    3. Summarize the key insights from all visualizations
+    
+    Focus on page 3-5 where the main charts are located.
+    """
+
+    result = service.mcp_create_pdf_agent(
+        task_prompt=task_prompt,
+        name="pdf_image_analyzer",
+        description="Agent for extracting and analyzing images from PDFs",
+        max_steps=25,
+    )
+
+    print("\n--- Result ---")
+    print(f"Success: {result.success}")
+    print(f"Message:\n{result.message}")
+
+
+def example_11_image_metadata():
+    """Example 11: Extract metadata from an image file."""
+    print("\n" + "=" * 80)
+    print("Example 11: Extract image metadata")
+    print("=" * 80)
+
+    args = ActionArguments(
+        name="pdf_agent_service",
+        transport="stdio",
+        workspace=os.getenv("AWORLD_WORKSPACE", "~"),
+    )
+
+    service = PDFAgentCollection(args)
+
+    task_prompt = """
+    Get the technical metadata for the image at '/path/to/photo.jpg'.
+    I need to know:
+    - Image dimensions (width x height)
+    - File format
+    - File size
+    - Color mode
+    - Whether it has transparency
+    """
+
+    result = service.mcp_create_pdf_agent(
+        task_prompt=task_prompt,
+        name="image_metadata_agent",
+        description="Agent for extracting image metadata",
+        max_steps=6,
+    )
+
+    print("\n--- Result ---")
+    print(f"Success: {result.success}")
+    print(f"Message:\n{result.message}")
+
+
 if __name__ == "__main__":
     # Load environment variables
     load_dotenv()
@@ -260,6 +409,9 @@ if __name__ == "__main__":
         print("- LLM_PROVIDER (optional, default: openai)")
         print("- LLM_MODEL_NAME (optional, default: gpt-4o)")
         print("- LLM_BASE_URL (optional)")
+        print("- IMAGE_LLM_API_KEY (optional, for image analysis, falls back to LLM_API_KEY)")
+        print("- IMAGE_LLM_MODEL_NAME (optional, for image analysis, default: gpt-4o)")
+        print("- IMAGE_LLM_BASE_URL (optional, for image analysis, falls back to LLM_BASE_URL)")
         print("- AWORLD_WORKSPACE (optional, default: ~)")
         exit(1)
 
@@ -269,7 +421,7 @@ if __name__ == "__main__":
 
     # Run examples
     try:
-        # Basic examples
+        # PDF Processing Examples
         # example_1_create_pdf_agent()
         # example_2_extract_with_images()
         # example_3_specific_pages()
@@ -277,6 +429,12 @@ if __name__ == "__main__":
         # example_5_reuse_existing_agent()
         example_6_get_capabilities()
         # example_7_complex_analysis()
+        
+        # Image Processing Examples (NEW)
+        # example_8_image_ocr()              # Extract text from images
+        # example_9_image_ai_analysis()      # AI-powered image analysis
+        # example_10_pdf_with_image_analysis()  # Combined PDF + image analysis
+        # example_11_image_metadata()        # Get image metadata
 
     except Exception as e:
         print(f"\nError running examples: {e}")
