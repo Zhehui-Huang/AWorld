@@ -9,7 +9,6 @@ Workflow (follow in order):
 4) Page selection: When only certain pages are relevant, use page_range (e.g., "0,5-10,20") to extract those pages efficiently.
 5) Image processing: When images are extracted from PDFs or provided separately, use image tools:
    - mcp_extract_text_ocr: Extract text from images using OCR (set preprocess=True for better accuracy)
-   - mcp_analyze_image_ai: Analyze image content using AI vision models (provide specific task/question)
    - mcp_get_image_metadata: Get technical metadata (dimensions, format, file size, etc.)
 6) Save content: If you need to reference long content later, set save_extracted_text_to_file=True to save it to the workspace (relative path).
 7) Answer: Provide the final answer based strictly on extracted content; cite page numbers or sections when possible.

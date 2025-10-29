@@ -1,22 +1,20 @@
 """
-PDF Agent MCP Server
+Image Agent MCP Server
 
-This module provides MCP server functionality for processing PDF documents and images.
-It supports PDF content extraction, text analysis, image processing, and returns LLM-friendly formatted results.
+This module provides MCP server functionality for processing and analyzing images.
+It supports image analysis, OCR, and metadata extraction, returning LLM-friendly formatted results.
 
 Key features:
-- Extract text content from PDF documents
-- Extract images and media from PDFs
-- Support for OCR when needed (documents and standalone images)
+- Extract text from images using OCR
 - AI-powered image analysis using vision models
-- Image metadata extraction
+- Extract technical metadata from images
+- Support for multiple image formats
 - Format output for LLM consumption
-- Save extracted content to files
 
 Main functions:
-- mcp_create_pdf_agent: Create PDF agent
-- mcp_use_existing_pdf_agent: Use existing PDF agent
-- mcp_get_pdf_agent_capabilities: Returns information about PDF agent service capabilities
+- mcp_create_image_agent: Create image agent
+- mcp_use_existing_image_agent: Use existing image agent
+- mcp_get_image_agent_capabilities: Returns information about image agent service capabilities
 
 Image tools available:
 - mcp_extract_text_ocr: Extract text from images using OCR
@@ -41,12 +39,12 @@ from aworld.config.conf import AgentConfig, TaskConfig
 from aworld.core.task import Task
 from aworld.logs.util import Color, logger
 from aworld.runner import Runners
-from examples.gaia.agent_collections.pdf_agent.prompt import system_prompt
+from examples.gaia.agent_collections.image_agent.prompt import system_prompt
 from examples.gaia.mcp_collections.base import ActionArguments, ActionCollection, ActionResponse
 
 
-class PDFAgentMetadata(BaseModel):
-    """Metadata for a PDF agent instance."""
+class ImageAgentMetadata(BaseModel):
+    """Metadata for an image agent instance."""
 
     agent_id: str
     name: str
@@ -58,13 +56,13 @@ class PDFAgentMetadata(BaseModel):
 
 
 class AgentRegistry:
-    """Registry to manage created PDF agent instances."""
+    """Registry to manage created image agent instances."""
 
     def __init__(self):
         self._agents: Dict[str, Agent] = {}
-        self._metadata: Dict[str, PDFAgentMetadata] = {}
+        self._metadata: Dict[str, ImageAgentMetadata] = {}
 
-    def register(self, agent: Agent, metadata: PDFAgentMetadata) -> None:
+    def register(self, agent: Agent, metadata: ImageAgentMetadata) -> None:
         """Register a new agent instance."""
         self._agents[metadata.agent_id] = agent
         self._metadata[metadata.agent_id] = metadata
@@ -73,11 +71,11 @@ class AgentRegistry:
         """Get an agent by ID."""
         return self._agents.get(agent_id)
 
-    def get_metadata(self, agent_id: str) -> Optional[PDFAgentMetadata]:
+    def get_metadata(self, agent_id: str) -> Optional[ImageAgentMetadata]:
         """Get agent metadata by ID."""
         return self._metadata.get(agent_id)
 
-    def list_agents(self) -> list[PDFAgentMetadata]:
+    def list_agents(self) -> list[ImageAgentMetadata]:
         """List all registered agents."""
         return list(self._metadata.values())
 
@@ -86,25 +84,25 @@ class AgentRegistry:
         return agent_id in self._agents
 
 
-class PDFAgentCollection(ActionCollection):
-    """MCP service for PDF processing agent that can extract and analyze PDF documents.
+class ImageAgentCollection(ActionCollection):
+    """MCP service for image processing agent that can analyze and extract information from images.
 
-    Provides comprehensive PDF processing capabilities including:
-    - create PDF agent
-    - reuse existing PDF agent
+    Provides comprehensive image processing capabilities including:
+    - create image agent
+    - reuse existing image agent
     """
 
     def __init__(self, arguments: ActionArguments) -> None:
         super().__init__(arguments)
         # Initialize agent registry
         self.agent_registry = AgentRegistry()
-        # Load MCP configuration for search tools
+        # Load MCP configuration for image tools
         self.mcp_config = self._load_mcp_config()
         # Log initialization status
-        self._color_log("PDF agent service initialized", Color.green, "debug")
+        self._color_log("Image agent service initialized", Color.green, "debug")
 
     def _load_mcp_config(self) -> Dict[str, Any]:
-        """Load MCP configuration for PDF agent tools."""
+        """Load MCP configuration for image agent tools."""
         try:
             mcp_path = Path(__file__).parent / "mcp.json"
             with open(mcp_path, mode="r", encoding="utf-8") as f:
@@ -120,10 +118,10 @@ class PDFAgentCollection(ActionCollection):
         self,
         name: str,
         description: str,
-    ) -> tuple[Agent, PDFAgentMetadata]:
-        """Create a new PDF agent instance with its own configuration."""
+    ) -> tuple[Agent, ImageAgentMetadata]:
+        """Create a new image agent instance with its own configuration."""
         # Generate unique agent ID
-        agent_id = f"pdf_agent_{uuid.uuid4().hex[:8]}"
+        agent_id = f"image_agent_{uuid.uuid4().hex[:8]}"
 
         # Load LLM configuration from environment variables
         llm_provider = os.getenv("LLM_PROVIDER", "openai")
@@ -155,7 +153,7 @@ class PDFAgentCollection(ActionCollection):
         )
 
         # Create metadata
-        metadata = PDFAgentMetadata(
+        metadata = ImageAgentMetadata(
             agent_id=agent_id,
             name=name,
             description=description,
@@ -170,25 +168,25 @@ class PDFAgentCollection(ActionCollection):
 
         return agent, metadata
 
-    def mcp_create_pdf_agent(
+    def mcp_create_image_agent(
         self,
-        task_prompt: str = Field(description="The task or query for the pdf agent to process"),
-        name: str = Field(default="pdf_agent", description="Name for the pdf agent"),
+        task_prompt: str = Field(description="The task or query for the image agent to process"),
+        name: str = Field(default="image_agent", description="Name for the image agent"),
         description: str = Field(
-            default="PDF agent specialized in pdf processing",
-            description="Description of the pdf agent's purpose",
+            default="Image agent specialized in image processing and analysis",
+            description="Description of the image agent's purpose",
         ),
         max_steps: int = Field(default=12, description="Maximum steps for agent execution"),
     ) -> ActionResponse:
         """
-        Create a new pdf agent and execute the given task.
+        Create a new image agent and execute the given task.
 
-        This method creates a pdf agent with:
+        This method creates an image agent with:
         1. Unique agent ID
         2. Custom name and description
         3. Independent LLM instance (configured via environment variables)
         4. Dedicated memory module
-        5. MCP tools (...)
+        5. MCP tools (OCR, AI analysis, metadata extraction)
 
         The agent will autonomously handle its thinking, planning, and tool calls
         to complete the task.
@@ -220,7 +218,7 @@ class PDFAgentCollection(ActionCollection):
             max_steps = max_steps.default
 
         try:
-            self._color_log(f"🤖 Creating new pdf agent: {name}", Color.cyan)
+            self._color_log(f"🤖 Creating new image agent: {name}", Color.cyan)
 
             # Create agent instance (LLM config loaded from environment)
             agent, metadata = self._create_agent_instance(
@@ -251,7 +249,7 @@ class PDFAgentCollection(ActionCollection):
                 self._color_log(f"⚠️ Task completed with no answer", Color.yellow)
 
             # Format response
-            formatted_message = f"""# PDF Agent Execution Results
+            formatted_message = f"""# Image Agent Execution Results
 
 **Agent ID:** `{metadata.agent_id}`
 **Agent Name:** `{metadata.name}`
@@ -268,7 +266,7 @@ class PDFAgentCollection(ActionCollection):
 **Answer:** {answer if answer else "No answer generated"}
 
 ---
-*Agent ID `{metadata.agent_id}` is now registered and can be reused with `mcp_use_existing_pdf_agent`.*
+*Agent ID `{metadata.agent_id}` is now registered and can be reused with `mcp_use_existing_image_agent`.*
 """
 
             return ActionResponse(
@@ -288,8 +286,8 @@ class PDFAgentCollection(ActionCollection):
             )
 
         except Exception as e:
-            error_msg = f"Failed to create and execute PDF agent: {str(e)}"
-            self.logger.error(f"PDF agent error: {traceback.format_exc()}")
+            error_msg = f"Failed to create and execute image agent: {str(e)}"
+            self.logger.error(f"Image agent error: {traceback.format_exc()}")
             self._color_log(f"❌ {error_msg}", Color.red)
 
             return ActionResponse(
@@ -298,20 +296,20 @@ class PDFAgentCollection(ActionCollection):
                 metadata={"error_type": "agent_creation_failed", "error_details": str(e)},
             )
 
-    def mcp_use_existing_pdf_agent(
+    def mcp_use_existing_image_agent(
         self,
-        agent_id: str = Field(description="The ID of an existing PDF agent to use"),
-        task_prompt: str = Field(description="The task or query for the PDF agent to process"),
+        agent_id: str = Field(description="The ID of an existing image agent to use"),
+        task_prompt: str = Field(description="The task or query for the image agent to process"),
         max_steps: int = Field(default=12, description="Maximum steps for agent execution"),
     ) -> ActionResponse:
         """
-        Use an existing PDF agent to execute a task.
+        Use an existing image agent to execute a task.
 
-        This method reuses a previously created PDF agent, maintaining its
+        This method reuses a previously created image agent, maintaining its
         configuration, memory, and state across multiple tasks.
 
         Args:
-            agent_id: ID of the existing PDF agent
+            agent_id: ID of the existing image agent
             task_prompt: The task or query to process
             max_steps: Maximum execution steps
 
@@ -340,7 +338,7 @@ class PDFAgentCollection(ActionCollection):
             agent = self.agent_registry.get_agent(agent_id)
             metadata = self.agent_registry.get_metadata(agent_id)
 
-            self._color_log(f"🔄 Using existing PDF agent: {metadata.name} ({agent_id})", Color.cyan)
+            self._color_log(f"🔄 Using existing image agent: {metadata.name} ({agent_id})", Color.cyan)
 
             # Execute task with the agent
             self._color_log(f"🚀 Executing task: {task_prompt}", Color.cyan)
@@ -363,7 +361,7 @@ class PDFAgentCollection(ActionCollection):
                 self._color_log(f"⚠️ Task completed with no answer", Color.yellow)
 
             # Format response
-            formatted_message = f"""# PDF Agent Execution Results
+            formatted_message = f"""# Image Agent Execution Results
 
 **Agent ID:** `{metadata.agent_id}`
 **Agent Name:** `{metadata.name}`
@@ -388,7 +386,7 @@ class PDFAgentCollection(ActionCollection):
 
         except Exception as e:
             error_msg = f"Failed to execute task with existing agent: {str(e)}"
-            self.logger.error(f"PDF agent error: {traceback.format_exc()}")
+            self.logger.error(f"Image agent error: {traceback.format_exc()}")
             self._color_log(f"❌ {error_msg}", Color.red)
 
             return ActionResponse(
@@ -397,11 +395,11 @@ class PDFAgentCollection(ActionCollection):
                 metadata={"error_type": "agent_execution_failed", "error_details": str(e)},
             )
 
-    def mcp_get_pdf_agent_capabilities(self) -> ActionResponse:
-        """Get information about PDF service agent capabilities and configuration.
+    def mcp_get_image_agent_capabilities(self) -> ActionResponse:
+        """Get information about image service agent capabilities and configuration.
 
         Returns:
-            ActionResponse with PDF service capabilities and current configuration
+            ActionResponse with image service capabilities and current configuration
         """
         # Get list of registered agents
         registered_agents = [
@@ -410,26 +408,26 @@ class PDFAgentCollection(ActionCollection):
         ]
 
         capabilities = {
-            "service_name": "PDF Agent MCP Server",
-            "version": "1.1.0",
-            "description": "Dynamic multi-layer agent architecture for PDF and image processing and analysis tasks",
+            "service_name": "Image Agent MCP Server",
+            "version": "1.0.0",
+            "description": "Dynamic multi-layer agent architecture for image processing and analysis tasks",
             "features": [
-                "Create independent PDF agents with dedicated LLM and memory",
+                "Create independent image agents with dedicated LLM and memory",
                 "Reuse existing agents across multiple tasks",
                 "Autonomous task execution with think-act-observe loop",
-                "PDF content extraction using marker package",
-                "Image and media extraction from PDFs",
-                "OCR support for scanned documents and images",
+                "OCR text extraction from images using Tesseract",
                 "AI-powered image analysis and reasoning using vision models",
                 "Image metadata extraction (dimensions, format, file size)",
+                "Support for multiple image formats (JPEG, PNG, GIF, WebP, BMP, TIFF)",
+                "Image preprocessing for better OCR accuracy",
                 "LLM-optimized result formatting",
                 "Agent registry for managing multiple agent instances",
             ],
             "mcp_tools": list(self.mcp_config.get("mcpServers", {}).keys()),
             "supported_operations": [
-                "mcp_create_pdf_agent: Create and execute with new agent",
-                "mcp_use_existing_pdf_agent: Execute with existing agent",
-                "mcp_get_pdf_agent_capabilities: Get service information",
+                "mcp_create_image_agent: Create and execute with new agent",
+                "mcp_use_existing_image_agent: Execute with existing agent",
+                "mcp_get_image_agent_capabilities: Get service information",
             ],
             "registered_agents": registered_agents,
             "agent_count": len(registered_agents),
@@ -440,7 +438,7 @@ class PDFAgentCollection(ActionCollection):
             },
         }
 
-        formatted_info = f"""# PDF Agent MCP Server Capabilities
+        formatted_info = f"""# Image Agent MCP Server Capabilities
 
 ## Overview
 **Service:** {capabilities["service_name"]}
@@ -475,14 +473,15 @@ if __name__ == "__main__":
 
     # Default arguments for testing
     args = ActionArguments(
-        name="pdf_agent_service",
+        name="image_agent_service",
         transport="stdio",
         workspace=os.getenv("AWORLD_WORKSPACE", "~"),
     )
 
-    # Initialize and run the PDF service
+    # Initialize and run the image service
     try:
-        service = PDFAgentCollection(args)
+        service = ImageAgentCollection(args)
         service.run()
     except Exception as e:
         print(f"An error occurred: {e}: {traceback.format_exc()}")
+

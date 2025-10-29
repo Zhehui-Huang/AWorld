@@ -229,6 +229,30 @@ class AgentConfig(BaseConfig):
     def llm_provider(self) -> str:
         return self.llm_config.llm_provider
 
+    @property
+    def llm_base_url(self) -> str:
+        return self.llm_config.llm_base_url
+
+    @property
+    def llm_api_key(self) -> str:
+        return self.llm_config.llm_api_key
+
+    @property
+    def llm_temperature(self) -> float:
+        return self.llm_config.llm_temperature
+
+    @property
+    def llm_sync_enabled(self) -> bool:
+        return self.llm_config.llm_sync_enabled
+
+    @property
+    def llm_async_enabled(self) -> bool:
+        return self.llm_config.llm_async_enabled
+
+    @property
+    def llm_client_type(self) -> ClientType:
+        return self.llm_config.llm_client_type
+
 
 class TaskConfig(BaseConfig):
     task_id: str = str(uuid.uuid4())

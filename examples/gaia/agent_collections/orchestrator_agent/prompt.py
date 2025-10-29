@@ -52,7 +52,7 @@ Step 1: orchestrator_agent.mcp_create_orchestrator_agent(
                  Return all six axis-end label words.",
     name="paper_figure_extractor",
     available_agents=["search_agent", "pdf_agent", "image_agent"],
-    max_steps=20
+    max_steps=50
 )
 # This sub-orchestrator will internally coordinate:
 #   - search_agent: Find and download the paper
@@ -104,7 +104,7 @@ orchestrator_agent.mcp_create_orchestrator_agent(
     task_prompt="[Detailed sub-task description with all context]",
     name="descriptive_orchestrator_name",
     available_agents=["search_agent", "pdf_agent", "image_agent"],  # List agents it can use
-    max_steps=20
+    max_steps=50
 )
 ```
 
@@ -113,7 +113,7 @@ orchestrator_agent.mcp_create_orchestrator_agent(
 search_agent.mcp_create_search_agent(
     task_prompt="[Specific search task]",
     name="search_task_name",
-    max_steps=15
+    max_steps=50
 )
 ```
 
@@ -122,7 +122,7 @@ search_agent.mcp_create_search_agent(
 pdf_agent.mcp_use_existing_pdf_agent(
     agent_id="pdf_agent_abc123",
     task_prompt="[New task for same agent]",
-    max_steps=10
+    max_steps=50
 )
 ```
 

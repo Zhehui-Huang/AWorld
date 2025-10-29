@@ -157,13 +157,14 @@ def example_1_hierarchical_paper_analysis():
     main_agent = create_main_orchestrator_v2(mcp_config)
 
     # Define complex task that benefits from hierarchical orchestration
-    task_prompt = """A paper about AI regulation that was originally submitted to arXiv.org in June 2022 shows a figure with three axes, where each axis has a label word at both ends. Which of these words is used to describe a type of society in a Physics and Society article submitted to arXiv.org on August 11, 2016?
+    task_prompt = """
+A paper about AI regulation that was originally submitted to arXiv.org in June 2022 shows a figure with three axes, where each axis has a label word at both ends. 
+A paper about Physics and Society article submitted to arXiv.org on August 11, 2016.
+One word in AI regulation paper matches with a word used to describe a type of society in the Physics and Society article.
+Please find the word.
 
-This task has two major phases:
-1. Find the June 2022 AI regulation paper, extract the three-axis figure, and identify all six axis-end labels
-2. Search the August 11, 2016 Physics and Society paper to find which label word describes a type of society
-
-Each phase requires multiple specialized agents working together."""
+You must create two parallel sub-orchestrators to deal with two papers in parallel. After finding the word in each paper, you can compare the words to find the matching one.
+"""
 
     print("\n📋 Task:")
     print(task_prompt)
@@ -182,7 +183,7 @@ Each phase requires multiple specialized agents working together."""
         id=str(uuid.uuid4().hex),
         input=task_prompt,
         agent=main_agent,
-        conf=TaskConfig(max_steps=40),  # More steps for hierarchical coordination
+        conf=TaskConfig(max_steps=100),  # More steps for hierarchical coordination
     )
 
     # Execute task

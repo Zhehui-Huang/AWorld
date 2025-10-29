@@ -19,8 +19,6 @@ Workflow (follow in order):
 3) Execute: Use the appropriate tool(s):
    - mcp_extract_text_ocr: Extract text from images using Optical Character Recognition
      * Parameters: file_path (required), language (default: "eng"), preprocess (default: true)
-   - mcp_analyze_image_ai: Analyze image content using AI vision models
-     * Parameters: file_path (required), task (specific question or analysis request)
    - mcp_get_image_metadata: Extract technical metadata from images
      * Parameters: file_path (required)
 

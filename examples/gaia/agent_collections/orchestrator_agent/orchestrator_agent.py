@@ -217,7 +217,7 @@ class OrchestratorAgentCollection(ActionCollection):
             default=["search_agent", "pdf_agent", "image_agent", "orchestrator_agent"],
             description="List of agent types this orchestrator can use (e.g., ['search_agent', 'pdf_agent'])",
         ),
-        max_steps: int = Field(default=25, description="Maximum steps for orchestrator execution"),
+        max_steps: int = Field(default=50, description="Maximum steps for orchestrator execution"),
         parent_orchestrator_id: str = Field(
             default=None, description="ID of parent orchestrator (for tracking hierarchy)"
         ),
