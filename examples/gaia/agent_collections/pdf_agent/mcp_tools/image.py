@@ -158,7 +158,7 @@ class ImageCollection(ActionCollection):
                 {
                     "role": "user",
                     "content": [
-                        {"role": "text", "text": task},
+                        {"type": "text", "text": task},
                         {"type": "image_url", "image_url": {"url": image_base64}},
                     ],
                 },
@@ -194,18 +194,57 @@ class ImageCollection(ActionCollection):
             elif image.mode == "P":
                 image = image.convert("RGB")
 
-        image.save(buffer, format=output_format, quality=85 if output_format.upper() == "JPEG" else None)
+        # Save image to buffer with appropriate parameters
+        save_kwargs = {"format": output_format}
+        if output_format.upper() == "JPEG":
+            save_kwargs["quality"] = 95
+        elif output_format.upper() == "PNG":
+            save_kwargs["compress_level"] = 6
+
+        image.save(buffer, **save_kwargs)
 
         mime_type = f"image/{output_format.lower()}"
         img_base64 = base64.b64encode(buffer.getvalue()).decode()
 
         return f"data:{mime_type};base64,{img_base64}"
 
+    def _file_to_base64(self, file_path: Path) -> str:
+        """Convert image file directly to base64 string without PIL processing.
+
+        This method reads the raw file bytes, which can be more reliable for
+        AI analysis as it preserves the original encoding.
+
+        Args:
+            file_path: Path to the image file
+
+        Returns:
+            Base64 encoded image string with data URI
+        """
+        # Detect mime type from file extension
+        ext = file_path.suffix.lower()
+        mime_map = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.gif': 'image/gif',
+            '.webp': 'image/webp',
+            '.bmp': 'image/bmp',
+            '.tiff': 'image/tiff',
+            '.tif': 'image/tiff',
+        }
+        mime_type = mime_map.get(ext, 'image/png')
+
+        # Read raw file bytes
+        with open(file_path, "rb") as f:
+            img_base64 = base64.b64encode(f.read()).decode("utf-8")
+
+        return f"data:{mime_type};base64,{img_base64}"
+
     def mcp_extract_text_ocr(
-        self,
-        file_path: str = Field(description="Path to the image file for OCR"),
-        language: str = Field(default="eng", description="OCR language code (e.g., 'eng', 'spa', 'fra')"),
-        preprocess: bool = Field(default=True, description="Whether to preprocess image for better OCR"),
+            self,
+            file_path: str = Field(description="Path to the image file for OCR"),
+            language: str = Field(default="eng", description="OCR language code (e.g., 'eng', 'spa', 'fra')"),
+            preprocess: bool = Field(default=True, description="Whether to preprocess image for better OCR"),
     ) -> ActionResponse:
         """Extract text from images using Optical Character Recognition (OCR).
 
@@ -305,9 +344,94 @@ class ImageCollection(ActionCollection):
                 metadata={"error_type": "ocr_error"},
             )
 
+    def mcp_analyze_image_ai(
+            self,
+            file_path: str = Field(description="Path to the image file for AI analysis"),
+            task: str = Field(
+                default="Describe what you see in this image",
+                description="Specific analysis task or question about the image",
+            ),
+    ) -> ActionResponse:
+        """Analyze image content using AI vision models.
+
+        This tool uses advanced AI models to analyze and describe image content,
+        answer questions about images, or perform specific visual reasoning tasks.
+
+        Args:
+            file_path: Path to the image file
+            task: Specific analysis task or question
+
+        Returns:
+            ActionResponse with AI analysis results and metadata
+        """
+        try:
+            # Handle FieldInfo objects
+            if isinstance(file_path, FieldInfo):
+                file_path = file_path.default
+            if isinstance(task, FieldInfo):
+                task = task.default
+
+            start_time = time.time()
+
+            # Validate input file
+            file_path: Path = self._validate_file_path(file_path)
+            self._color_log(f"Analyzing image with AI: {file_path.name}", Color.cyan)
+
+            # Load image for metadata extraction
+            image = self._load_image(file_path)
+            original_metadata = self._get_image_metadata(image, file_path)
+
+            # Convert to base64 for AI analysis - use direct file reading for better compatibility
+            image_base64 = self._file_to_base64(file_path)
+
+            # Perform AI analysis
+            analysis_result = self._analyze_with_ai(image_base64, task)
+            processing_time = time.time() - start_time
+
+            # Create metadata object
+            metadata_dict = {
+                "file_name": file_path.name,
+                "file_size": file_path.stat().st_size,
+                "file_type": file_path.suffix.lower(),
+                "absolute_path": str(file_path.absolute()),
+                "width": original_metadata["width"],
+                "height": original_metadata["height"],
+                "mode": original_metadata["mode"],
+                "format": original_metadata["format"],
+                "has_transparency": original_metadata["has_transparency"],
+                "processing_time": processing_time,
+                "output_files": [],
+                "analysis_result": analysis_result,
+                "output_format": "ai_analysis",
+            }
+
+            image_metadata = ImageMetadata(**metadata_dict)
+
+            result_message = (
+                f"AI Analysis Results for {file_path.name}:\n\n"
+                f"**Task:** {task}\n\n"
+                f"**Analysis:**\n{analysis_result}\n\n"
+                f"**Image Info:**\n"
+                f"- Dimensions: {original_metadata['width']}x{original_metadata['height']}\n"
+                f"- Format: {original_metadata['format']}\n"
+                f"- Processing time: {processing_time:.2f}s"
+            )
+
+            self._color_log(f"AI analysis completed in {processing_time:.2f}s", Color.green)
+
+            return ActionResponse(success=True, message=result_message, metadata=image_metadata.model_dump())
+
+        except Exception as e:
+            self.logger.error(f"AI image analysis failed: {str(e)}: {traceback.format_exc()}")
+            return ActionResponse(
+                success=False,
+                message=f"AI image analysis failed: {str(e)}",
+                metadata={"error_type": "ai_analysis_error"},
+            )
+
     def mcp_get_image_metadata(
-        self,
-        file_path: str = Field(description="Path to the image file to analyze"),
+            self,
+            file_path: str = Field(description="Path to the image file to analyze"),
     ) -> ActionResponse:
         """Extract comprehensive metadata from image files.
 
