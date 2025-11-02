@@ -155,8 +155,7 @@ class LLMModel:
             for p, patterns in ENDPOINT_PATTERNS.items():
                 if any(pattern in base_url for pattern in patterns):
                     identified_provider = p
-                    logger.info(
-                        f"Identified provider: {identified_provider} based on base_url: {base_url}")
+                    # logger.info(f"Identified provider: {identified_provider} based on base_url: {base_url}")
                     return identified_provider
 
         # Identify provider based on model_name

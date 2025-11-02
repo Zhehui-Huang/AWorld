@@ -98,7 +98,7 @@ class StringPromptTemplate(BasePromptTemplate):
             self._validate_input_variables(variables)
             logger.debug(f"variables: {variables} {self.template} {self.template_format}")
             formatted = format_template(self.template, self.template_format, **variables)
-            logger.info(f"Formatting StringPromptTemplate with context, cost: {time.time() - st}")
+            # logger.info(f"Formatting StringPromptTemplate with context, cost: {time.time() - st}")
             return formatted
         except Exception as e:
             # If any error during formatting, return original template

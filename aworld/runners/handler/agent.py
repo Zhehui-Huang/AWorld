@@ -91,7 +91,7 @@ class DefaultAgentHandler(AgentHandler):
                     topic=TopicType.FINISHED,
                     headers=headers
                 )
-                logger.info(f"agent handler send finished message: {msg}")
+                # logger.info(f"agent handler send finished message: {msg}")
                 yield msg
                 return
 
@@ -133,11 +133,10 @@ class DefaultAgentHandler(AgentHandler):
                         yield event
                 elif not message.receiver:
                     agent_name = message.sender
-                    async for event in self._stop_check(ActionModel(agent_name=agent_name, policy_info=data.content),
-                                                        message):
+                    async for event in self._stop_check(ActionModel(agent_name=agent_name, policy_info=data.content), message):
                         yield event
                 else:
-                    logger.info(f"agent handler send observation message: {message}")
+                    # logger.info(f"agent handler send observation message: {message}")
                     yield message
             return
 
@@ -200,7 +199,7 @@ class DefaultAgentHandler(AgentHandler):
 
         for agent in agents:
             async for event in self._agent(agent, message):
-                logger.info(f"agent handler send message: {event}")
+                # logger.info(f"agent handler send message: {event}")
                 yield event
 
     async def _agent(self, action: ActionModel, message: Message):

@@ -52,7 +52,7 @@ class InheritanceSingleton(object, metaclass=SingletonMeta):
 
         local_instance = cls._local_instances[cls.__name__]
         if not hasattr(local_instance, 'instance'):
-            logger.info(f"{threading.current_thread().name} thread create {cls} instance.")
+            # logger.info(f"{threading.current_thread().name} thread create {cls} instance.")
             local_instance.instance = cls(*args, **kwargs)
 
         return local_instance.instance

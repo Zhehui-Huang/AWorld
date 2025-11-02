@@ -27,6 +27,8 @@ from aworld.agents.llm_agent import Agent
 from aworld.config.conf import AgentConfig, TaskConfig
 from aworld.core.task import Task
 from aworld.runner import Runners
+from examples.gaia.agent_collections.image_agent.prompt import system_prompt
+
 
 
 def example_1_create_image_agent():
@@ -52,7 +54,7 @@ def example_1_create_image_agent():
     main_agent = Agent(
         conf=main_agent_config,
         name="main_agent",
-        system_prompt="You are a helpful assistant that can use image processing tools via MCP.",
+        system_prompt=system_prompt,
         mcp_config=mcp_config,
         mcp_servers=["image"],
     )
@@ -63,11 +65,7 @@ def example_1_create_image_agent():
     # Task that requires image processing
     task_prompt = f"""
     I need to analyze the image at path: {image_path}
-    
-    Please use the available MCP tools to:
-    1. Perform AI analysis of the image content
-    
-    Provide a comprehensive summary of what you found from all three operations.
+    Please extract all axis labels. The image contains three axes, and each axis has label words at both ends. I need you to identify and list all six labels (two labels per axis).
     """
 
     task = Task(

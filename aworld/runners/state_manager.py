@@ -459,7 +459,7 @@ class RuntimeStateManager(InheritanceSingleton):
         '''
         start_time = time.time()
         log_start_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-        logger.info(f"wait for node completion: {node_id}, start_time:{log_start_time}")
+        # logger.info(f"wait for node completion: {node_id}, start_time:{log_start_time}")
 
         while True:
             node = self._find_node(node_id)

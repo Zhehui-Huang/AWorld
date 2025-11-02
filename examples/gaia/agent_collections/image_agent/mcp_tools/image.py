@@ -6,11 +6,9 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-import pytesseract
 from dotenv import load_dotenv
-from PIL import Image, ImageEnhance, ImageFilter
+from PIL import Image
 from pydantic import BaseModel, Field
-from pydantic.fields import FieldInfo
 
 from aworld.config.conf import AgentConfig
 from aworld.logs.util import Color
@@ -109,40 +107,6 @@ class ImageCollection(ActionCollection):
             "has_transparency": image.mode in ("RGBA", "LA") or "transparency" in image.info,
         }
 
-    def _optimize_image(self, image: Image.Image, max_size: tuple[int, int] | None = None) -> Image.Image:
-        """Optimize image for size and quality.
-
-        Args:
-            image: PIL Image object
-            max_size: Maximum dimensions (width, height)
-
-        Returns:
-            Optimized PIL Image object
-        """
-        optimized = image.copy()
-
-        # Resize if max_size specified
-        if max_size:
-            optimized.thumbnail(max_size, Image.Resampling.LANCZOS)
-
-        return optimized
-
-    def _perform_ocr(self, image: Image.Image) -> str:
-        """Perform OCR on image to extract text.
-
-        Args:
-            image: PIL Image object
-
-        Returns:
-            Extracted text string
-        """
-        try:
-            return pytesseract.image_to_string(image).strip()
-        except ImportError:
-            return "OCR not available - pytesseract not installed"
-        except Exception as e:
-            return f"OCR failed: {str(e)}"
-
     def _analyze_with_ai(self, image_base64: str, task: str) -> str:
         """Analyze image using AI model.
 
@@ -240,110 +204,6 @@ class ImageCollection(ActionCollection):
         
         return f"data:{mime_type};base64,{img_base64}"
 
-    def mcp_extract_text_ocr(
-        self,
-        file_path: str = Field(description="Path to the image file for OCR"),
-        language: str = Field(default="eng", description="OCR language code (e.g., 'eng', 'spa', 'fra')"),
-        preprocess: bool = Field(default=True, description="Whether to preprocess image for better OCR"),
-    ) -> ActionResponse:
-        """Extract text from images using Optical Character Recognition (OCR).
-
-        This tool uses Tesseract OCR to extract text content from images,
-        with optional preprocessing to improve recognition accuracy.
-
-        Args:
-            file_path: Path to the image file
-            language: OCR language for better recognition
-            preprocess: Whether to enhance image for OCR
-
-        Returns:
-            ActionResponse with extracted text and metadata
-        """
-        try:
-            # Handle FieldInfo objects
-            if isinstance(file_path, FieldInfo):
-                file_path = file_path.default
-            if isinstance(language, FieldInfo):
-                language = language.default
-            if isinstance(preprocess, FieldInfo):
-                preprocess = preprocess.default
-
-            start_time = time.time()
-
-            # Validate input file
-            file_path: Path = self._validate_file_path(file_path)
-            self._color_log(f"Performing OCR on: {file_path.name}", Color.cyan)
-
-            # Load image
-            image = self._load_image(file_path)
-            original_metadata = self._get_image_metadata(image, file_path)
-
-            # Preprocess image for better OCR if requested
-            if preprocess:
-                # Convert to grayscale
-                if image.mode != "L":
-                    image = image.convert("L")
-
-                # Enhance contrast
-                enhancer = ImageEnhance.Contrast(image)
-                image = enhancer.enhance(2.0)
-
-                # Apply slight sharpening
-                image = image.filter(ImageFilter.SHARPEN)
-
-            # Perform OCR
-            extracted_text = self._perform_ocr(image)
-            processing_time = time.time() - start_time
-
-            # Count words and characters
-            word_count = len(extracted_text.split()) if extracted_text else 0
-            char_count = len(extracted_text) if extracted_text else 0
-
-            # Create metadata object
-            image_metadata = ImageMetadata(
-                file_name=file_path.name,
-                file_size=file_path.stat().st_size,
-                file_type=file_path.suffix.lower(),
-                absolute_path=str(file_path.absolute()),
-                width=original_metadata["width"],
-                height=original_metadata["height"],
-                mode=original_metadata["mode"],
-                format=original_metadata["format"],
-                has_transparency=original_metadata["has_transparency"],
-                processing_time=processing_time,
-                output_files=[],
-                extracted_text=extracted_text,
-                output_format="ocr_text",
-            )
-
-            if extracted_text:
-                result_message = (
-                    f"OCR Results for {file_path.name}:\n\n"
-                    f"**Extracted Text:**\n{extracted_text}\n\n"
-                    f"**Statistics:**\n"
-                    f"- Words: {word_count}\n"
-                    f"- Characters: {char_count}\n"
-                    f"- Language: {language}\n"
-                    f"- Processing time: {processing_time:.2f}s"
-                )
-            else:
-                result_message = (
-                    f"No text detected in {file_path.name}."
-                    " The image may not contain readable text or OCR preprocessing may be needed."
-                )
-
-            self._color_log(f"OCR completed: {word_count} words extracted in {processing_time:.2f}s", Color.green)
-
-            return ActionResponse(success=True, message=result_message, metadata=image_metadata.model_dump())
-
-        except Exception as e:
-            self.logger.error(f"OCR failed: {str(e)}: {traceback.format_exc()}")
-            return ActionResponse(
-                success=False,
-                message=f"OCR failed: {str(e)}",
-                metadata={"error_type": "ocr_error"},
-            )
-
     def mcp_analyze_image_ai(
         self,
         file_path: str = Field(description="Path to the image file for AI analysis"),
@@ -358,19 +218,13 @@ class ImageCollection(ActionCollection):
         answer questions about images, or perform specific visual reasoning tasks.
 
         Args:
-            file_path: Path to the image file
-            task: Specific analysis task or question
+            file_path: Path to the image file for AI analysis
+            task: Specific analysis task or question about the image
 
         Returns:
             ActionResponse with AI analysis results and metadata
         """
         try:
-            # Handle FieldInfo objects
-            if isinstance(file_path, FieldInfo):
-                file_path = file_path.default
-            if isinstance(task, FieldInfo):
-                task = task.default
-
             start_time = time.time()
 
             # Validate input file
@@ -398,23 +252,20 @@ class ImageCollection(ActionCollection):
                 "height": original_metadata["height"],
                 "mode": original_metadata["mode"],
                 "format": original_metadata["format"],
-                "has_transparency": original_metadata["has_transparency"],
                 "processing_time": processing_time,
                 "output_files": [],
                 "analysis_result": analysis_result,
                 "output_format": "ai_analysis",
             }
-
             image_metadata = ImageMetadata(**metadata_dict)
-
             result_message = (
-                f"AI Analysis Results for {file_path.name}:\n\n"
-                f"**Task:** {task}\n\n"
-                f"**Analysis:**\n{analysis_result}\n\n"
-                f"**Image Info:**\n"
-                f"- Dimensions: {original_metadata['width']}x{original_metadata['height']}\n"
-                f"- Format: {original_metadata['format']}\n"
-                f"- Processing time: {processing_time:.2f}s"
+                # f"Analysis Results for {file_path.name}:\n\n"
+                # f"**Task:** {task}\n\n"
+                f"**Analysis Results:**\n{analysis_result}\n\n"
+                # f"**Image Info:**\n"
+                # f"- Dimensions: {original_metadata['width']}x{original_metadata['height']}\n"
+                # f"- Format: {original_metadata['format']}\n"
+                # f"- Processing time: {processing_time:.2f}s"
             )
 
             self._color_log(f"AI analysis completed in {processing_time:.2f}s", Color.green)
@@ -422,7 +273,7 @@ class ImageCollection(ActionCollection):
             return ActionResponse(success=True, message=result_message, metadata=image_metadata.model_dump())
 
         except Exception as e:
-            self.logger.error(f"AI image analysis failed: {str(e)}: {traceback.format_exc()}")
+            self.logger.error(f"Image analysis failed: {str(e)}: {traceback.format_exc()}")
             return ActionResponse(
                 success=False,
                 message=f"AI image analysis failed: {str(e)}",
@@ -445,9 +296,6 @@ class ImageCollection(ActionCollection):
             ActionResponse with detailed image metadata
         """
         try:
-            if isinstance(file_path, FieldInfo):
-                file_path = file_path.default
-
             start_time = time.time()
 
             # Validate input file

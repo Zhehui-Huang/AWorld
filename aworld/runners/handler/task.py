@@ -62,7 +62,7 @@ class DefaultTaskHandler(TaskHandler):
             for name, tool in new_tools.items():
                 if isinstance(tool, Tool) or isinstance(tool, AsyncTool):
                     await self.runner.event_mng.register(Constants.TOOL, name, tool.step)
-                    logger.info(f"dynamic register {name} tool.")
+                    # logger.info(f"dynamic register {name} tool.")
                 else:
                     logger.warning(f"Unknown tool instance: {tool}")
             return

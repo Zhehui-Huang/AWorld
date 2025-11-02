@@ -253,4 +253,4 @@ def register(key, runtime_backend):
         return
 
     RUNTIME[key] = runtime_backend
-    logger.info("register {}:{} success".format(key, runtime_backend))
+    # logger.info("register {}:{} success".format(key, runtime_backend))

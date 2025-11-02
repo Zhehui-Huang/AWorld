@@ -59,7 +59,7 @@ class TaskEventRunner(TaskRunner):
             finally:
                 # the last step mark output finished
                 if not self.task.is_sub_task:
-                    logger.info(f'main task {self.task.id} will mark outputs finished')
+                    # logger.info(f'main task {self.task.id} will mark outputs finished')
                     await self.task.outputs.mark_completed()
 
     async def pre_run(self):
@@ -202,13 +202,13 @@ class TaskEventRunner(TaskRunner):
         con = message
         async with trace.handler_span(message=message, handler=handler):
             try:
-                logger.info(f"process start message id: {message.id} of task {self.task.id}")
+                # logger.info(f"process start message id: {message.id} of task {self.task.id}")
                 if asyncio.iscoroutinefunction(handler):
                     con = await handler(con)
                 else:
                     con = handler(con)
 
-                logger.info(f"process end message id: {message.id} of task {self.task.id}")
+                # logger.info(f"process end message id: {message.id} of task {self.task.id}")
                 if isinstance(con, Message):
                     # process in framework
                     self.state_manager.save_message_handle_result(name=handler.__name__,

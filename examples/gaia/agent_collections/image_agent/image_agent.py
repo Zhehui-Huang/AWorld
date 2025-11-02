@@ -2,22 +2,24 @@
 Image Agent MCP Server
 
 This module provides MCP server functionality for processing and analyzing images.
-It supports image analysis, OCR, and metadata extraction, returning LLM-friendly formatted results.
+It creates LLM-based agents that can autonomously perform image processing tasks using vision models.
 
 Key features:
-- Extract text from images using OCR
-- AI-powered image analysis using vision models
-- Extract technical metadata from images
-- Support for multiple image formats
-- Format output for LLM consumption
+- Create independent image processing agents with dedicated LLM and memory
+- Reuse existing agents across multiple tasks
+- AI-powered image analysis using vision models (e.g., GPT-4o)
+- Extract technical metadata from images (dimensions, format, file size, etc.)
+- Support for multiple image formats (JPEG, PNG, GIF, WebP, BMP, TIFF)
+- Autonomous task execution with think-act-observe loop
+- LLM-optimized result formatting
 
 Main functions:
-- mcp_create_image_agent: Create image agent
-- mcp_use_existing_image_agent: Use existing image agent
-- mcp_get_image_agent_capabilities: Returns information about image agent service capabilities
+- mcp_create_image_agent: Create a new image agent and execute a task
+- mcp_use_existing_image_agent: Use an existing image agent to execute a task
+- mcp_get_image_agent_capabilities: Get information about available image agent service capabilities
 
-Image tools available:
-- mcp_extract_text_ocr: Extract text from images using OCR
+MCP tools available to image agents:
+- mcp_analyze_image_ai: Analyze image content using AI vision models
 - mcp_get_image_metadata: Extract technical metadata from images
 """
 
@@ -29,15 +31,13 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import requests
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
-from pydantic.fields import FieldInfo
 
 from aworld.agents.llm_agent import Agent
 from aworld.config.conf import AgentConfig, TaskConfig
 from aworld.core.task import Task
-from aworld.logs.util import Color, logger
+from aworld.logs.util import Color
 from aworld.runner import Runners
 from examples.gaia.agent_collections.image_agent.prompt import system_prompt
 from examples.gaia.mcp_collections.base import ActionArguments, ActionCollection, ActionResponse
@@ -85,11 +85,17 @@ class AgentRegistry:
 
 
 class ImageAgentCollection(ActionCollection):
-    """MCP service for image processing agent that can analyze and extract information from images.
+    """MCP service for image processing agents that can autonomously analyze and extract information from images.
 
-    Provides comprehensive image processing capabilities including:
-    - create image agent
-    - reuse existing image agent
+    This service manages the lifecycle of image processing agents, each with its own:
+    - Dedicated LLM instance for autonomous reasoning
+    - Memory module for maintaining context
+    - Access to image processing tools (AI analysis, metadata extraction)
+
+    Capabilities:
+    - Create new image agents with unique identities
+    - Reuse existing agents across multiple tasks
+    - Track and manage multiple agent instances
     """
 
     def __init__(self, arguments: ActionArguments) -> None:
@@ -119,7 +125,15 @@ class ImageAgentCollection(ActionCollection):
         name: str,
         description: str,
     ) -> tuple[Agent, ImageAgentMetadata]:
-        """Create a new image agent instance with its own configuration."""
+        """Create a new image agent instance with its own configuration.
+
+        Args:
+            name: Name for the agent
+            description: Description of the agent's purpose
+
+        Returns:
+            Tuple of (Agent instance, ImageAgentMetadata)
+        """
         # Generate unique agent ID
         agent_id = f"image_agent_{uuid.uuid4().hex[:8]}"
 
@@ -176,47 +190,29 @@ class ImageAgentCollection(ActionCollection):
             default="Image agent specialized in image processing and analysis",
             description="Description of the image agent's purpose",
         ),
-        max_steps: int = Field(default=12, description="Maximum steps for agent execution"),
+        max_steps: int = Field(default=15, description="Maximum steps for agent execution"),
     ) -> ActionResponse:
-        """
-        Create a new image agent and execute the given task.
+        """Create a new image agent and execute the given task.
 
         This method creates an image agent with:
         1. Unique agent ID
         2. Custom name and description
         3. Independent LLM instance (configured via environment variables)
         4. Dedicated memory module
-        5. MCP tools (OCR, AI analysis, metadata extraction)
+        5. MCP tools for image analysis and metadata extraction
 
         The agent will autonomously handle its thinking, planning, and tool calls
-        to complete the task.
-
-        LLM configuration is loaded from environment variables:
-        - LLM_PROVIDER (default: "openai")
-        - LLM_MODEL_NAME (default: "gpt-4o")
-        - LLM_BASE_URL (optional)
-        - LLM_API_KEY (required)
-        - LLM_TEMPERATURE (default: "0.0")
+        to complete the task using a think-act-observe loop.
 
         Args:
-            task_prompt: The task or query to process
-            name: Name for the agent
-            description: Description of agent's purpose
-            max_steps: Maximum execution steps
+            task_prompt: The task or query for the image agent to process
+            name: Name for the image agent (default: "image_agent")
+            description: Description of the agent's purpose
+            max_steps: Maximum number of execution steps (default: 15)
 
         Returns:
-            ActionResponse with execution results and agent metadata
+            ActionResponse with execution results and agent metadata including agent_id
         """
-        # Handle FieldInfo objects
-        if isinstance(task_prompt, FieldInfo):
-            task_prompt = task_prompt.default
-        if isinstance(name, FieldInfo):
-            name = name.default
-        if isinstance(description, FieldInfo):
-            description = description.default
-        if isinstance(max_steps, FieldInfo):
-            max_steps = max_steps.default
-
         try:
             self._color_log(f"🤖 Creating new image agent: {name}", Color.cyan)
 
@@ -249,24 +245,18 @@ class ImageAgentCollection(ActionCollection):
                 self._color_log(f"⚠️ Task completed with no answer", Color.yellow)
 
             # Format response
-            formatted_message = f"""# Image Agent Execution Results
+            formatted_message = f"""# Image Agent Created Successfully
 
 **Agent ID:** `{metadata.agent_id}`
 **Agent Name:** `{metadata.name}`
 **Description:** {metadata.description}
-**Created At:** {metadata.created_at}
-
-## Configuration
-- **LLM Provider:** {metadata.llm_provider}
-- **LLM Model:** {metadata.llm_model_name}
-- **MCP Servers:** {', '.join(metadata.mcp_servers)}
 
 ## Task Results
 **Task:** {task_prompt}
 **Answer:** {answer if answer else "No answer generated"}
 
 ---
-*Agent ID `{metadata.agent_id}` is now registered and can be reused with `mcp_use_existing_image_agent`.*
+*The agent ID `{metadata.agent_id}` has been registered and can be reused with `mcp_use_existing_image_agent` for future tasks.*
 """
 
             return ActionResponse(
@@ -278,10 +268,10 @@ class ImageAgentCollection(ActionCollection):
                     "description": metadata.description,
                     "answer": answer,
                     "task_prompt": task_prompt,
-                    "created_at": metadata.created_at,
-                    "llm_provider": metadata.llm_provider,
-                    "llm_model_name": metadata.llm_model_name,
-                    "mcp_servers": metadata.mcp_servers,
+                    # "created_at": metadata.created_at,
+                    # "llm_provider": metadata.llm_provider,
+                    # "llm_model_name": metadata.llm_model_name,
+                    # "mcp_servers": metadata.mcp_servers,
                 },
             )
 
@@ -300,30 +290,22 @@ class ImageAgentCollection(ActionCollection):
         self,
         agent_id: str = Field(description="The ID of an existing image agent to use"),
         task_prompt: str = Field(description="The task or query for the image agent to process"),
-        max_steps: int = Field(default=12, description="Maximum steps for agent execution"),
+        max_steps: int = Field(default=15, description="Maximum steps for agent execution"),
     ) -> ActionResponse:
-        """
-        Use an existing image agent to execute a task.
+        """Use an existing image agent to execute a task.
 
         This method reuses a previously created image agent, maintaining its
-        configuration, memory, and state across multiple tasks.
+        configuration, memory, and state across multiple tasks. This is useful
+        for maintaining context and continuity across related image processing tasks.
 
         Args:
-            agent_id: ID of the existing image agent
-            task_prompt: The task or query to process
-            max_steps: Maximum execution steps
+            agent_id: The ID of an existing image agent (obtained from mcp_create_image_agent)
+            task_prompt: The task or query for the image agent to process
+            max_steps: Maximum number of execution steps (default: 15)
 
         Returns:
             ActionResponse with execution results and agent metadata
         """
-        # Handle FieldInfo objects
-        if isinstance(agent_id, FieldInfo):
-            agent_id = agent_id.default
-        if isinstance(task_prompt, FieldInfo):
-            task_prompt = task_prompt.default
-        if isinstance(max_steps, FieldInfo):
-            max_steps = max_steps.default
-
         try:
             # Check if agent exists
             if not self.agent_registry.exists(agent_id):
@@ -361,7 +343,7 @@ class ImageAgentCollection(ActionCollection):
                 self._color_log(f"⚠️ Task completed with no answer", Color.yellow)
 
             # Format response
-            formatted_message = f"""# Image Agent Execution Results
+            formatted_message = f"""# Existing Image Agent Executed Task
 
 **Agent ID:** `{metadata.agent_id}`
 **Agent Name:** `{metadata.name}`
@@ -403,23 +385,22 @@ class ImageAgentCollection(ActionCollection):
         """
         # Get list of registered agents
         registered_agents = [
-            {"agent_id": m.agent_id, "name": m.name, "description": m.description, "created_at": m.created_at}
+            {"agent_id": m.agent_id, "name": m.name, "description": m.description}
             for m in self.agent_registry.list_agents()
         ]
 
         capabilities = {
             "service_name": "Image Agent MCP Server",
             "version": "1.0.0",
-            "description": "Dynamic multi-layer agent architecture for image processing and analysis tasks",
+            "description": "An LLM-based agent for image processing and analysis tasks",
             "features": [
                 "Create independent image agents with dedicated LLM and memory",
                 "Reuse existing agents across multiple tasks",
                 "Autonomous task execution with think-act-observe loop",
-                "OCR text extraction from images using Tesseract",
                 "AI-powered image analysis and reasoning using vision models",
+                "Text extraction from images using AI vision models",
                 "Image metadata extraction (dimensions, format, file size)",
                 "Support for multiple image formats (JPEG, PNG, GIF, WebP, BMP, TIFF)",
-                "Image preprocessing for better OCR accuracy",
                 "LLM-optimized result formatting",
                 "Agent registry for managing multiple agent instances",
             ],
@@ -433,7 +414,7 @@ class ImageAgentCollection(ActionCollection):
             "agent_count": len(registered_agents),
             "configuration": {
                 "workspace": str(self.workspace),
-                "default_max_steps": 12,
+                "default_max_steps": 15,
                 "default_temperature": 0.0,
             },
         }

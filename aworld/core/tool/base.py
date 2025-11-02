@@ -373,10 +373,8 @@ class AsyncTool(AsyncBaseTool[Observation, List[ActionModel]]):
                 f"Traceback:\n{traceback.format_exc()}"
             )
             raise e
-        finally:
-            logger.warning(
-                f"Tool {self.name()} result: {final_res}, session_id: {message.session_id}, task_id: {message.context.task_id}"
-            )
+        # finally:
+            # logger.warning(f"Tool {self.name()} result: {final_res}, session_id: {message.session_id}, task_id: {message.context.task_id}")
 
     async def post_step(self,
                         step_res: Tuple[Observation, float, bool, bool, Dict[str, Any]],
@@ -411,7 +409,7 @@ class AsyncTool(AsyncBaseTool[Observation, List[ActionModel]]):
                                   action: List[ActionModel],
                                   message: Message,
                                   **kwargs):
-        logger.info(f"send callback message: {message}")
+        # logger.info(f"send callback message: {message}")
         await send_message(message)
 
         from aworld.runners.state_manager import RuntimeStateManager, RunNodeStatus, RunNodeBusiType
@@ -432,12 +430,10 @@ class AsyncTool(AsyncBaseTool[Observation, List[ActionModel]]):
             tool_act_results = step_res[0].action_result
             callback_act_results = res_node.results
             if not callback_act_results:
-                logger.warn(
-                    f"tool {self.name()} callback finished with empty node result.")
+                # logger.warn(f"tool {self.name()} callback finished with empty node result.")
                 return
             if len(tool_act_results) != len(callback_act_results):
-                logger.warn(
-                    "tool action result and callback action result length not match.")
+                # logger.warn("tool action result and callback action result length not match.")
                 return
             for idx, res in enumerate(callback_act_results):
                 if res.status == RunNodeStatus.SUCCESS:

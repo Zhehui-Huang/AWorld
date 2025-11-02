@@ -1,6 +1,7 @@
 # coding: utf-8
 # Copyright (c) 2025 inclusionAI.
 import json
+from pathlib import Path
 
 import numpy as np
 
@@ -20,7 +21,9 @@ def to_serializable(obj, _memo=None):
         return str(obj)
     _memo.add(obj_id)
 
-    if isinstance(obj, dict):
+    if isinstance(obj, Path):
+        return str(obj)
+    elif isinstance(obj, dict):
         return {k: to_serializable(v, _memo) for k, v in obj.items()}
     elif isinstance(obj, (list, set)):
         return [to_serializable(i, _memo) for i in obj]

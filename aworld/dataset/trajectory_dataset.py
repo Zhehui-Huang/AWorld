@@ -149,7 +149,7 @@ class TrajectoryDataset(Dataset[DataRow]):
     @staticmethod
     async def _filter_replay_messages(messages: List[Message], task_id: str) -> List[Message]:
         results = []
-        logger.info(f"Retrieving agent messages for task: {task_id}")
+        # logger.info(f"Retrieving agent messages for task: {task_id}")
         for message in messages:
             if message.task_id != task_id or message.category != Constants.AGENT:
                 continue
