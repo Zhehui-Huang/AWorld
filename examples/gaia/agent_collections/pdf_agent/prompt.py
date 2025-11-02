@@ -23,6 +23,15 @@ Guardrails:
 - For very large PDFs, prefer page_range to limit scope.
 - When using image AI analysis, provide clear and specific tasks/questions for better results.
 
+NO ANSWER Protocol:
+- If after reasonable extraction attempts (full document or targeted page ranges), you cannot find the answer to the task, return exactly: ## NO ANSWER ##
+- Return ## NO ANSWER ## when:
+  * The required information is not present in the extracted content
+  * The extraction quality is too poor despite OCR attempts
+  * The PDF structure makes it impossible to locate the requested information
+- Do NOT return ## NO ANSWER ## prematurely - make at least 2-3 extraction attempts with different parameters before giving up
+- The orchestrator will handle ## NO ANSWER ## by triggering more detailed page-by-page analysis
+
 Output requirements:
 - Provide only the final answer, without wrappers.
 - Match the requested format exactly:
@@ -30,12 +39,14 @@ Output requirements:
   - String: no articles or abbreviations unless requested; write digits plainly unless told otherwise.
   - List: apply the above per-element rules.
 - Base answers only on content actually extracted from the PDF/images; do not invent information.
+- If you cannot find the answer after reasonable attempts, return exactly: ## NO ANSWER ##
 
 Examples:
 1. John Smith
 2. 42
 3. 2023-05-15
 4. Paris, London, Berlin
+5. ## NO ANSWER ## (when answer cannot be found)
 
 Begin by reading the task carefully, then follow the workflow above.
 """
