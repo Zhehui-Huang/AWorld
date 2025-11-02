@@ -186,13 +186,6 @@ class SearchAgentCollection(ActionCollection):
         The agent will autonomously handle its thinking, planning, and tool calls
         to complete the task.
 
-        LLM configuration is loaded from environment variables:
-        - LLM_PROVIDER (default: "openai")
-        - LLM_MODEL_NAME (default: "gpt-4o")
-        - LLM_BASE_URL (optional)
-        - LLM_API_KEY (required)
-        - LLM_TEMPERATURE (default: "0.0")
-
         Args:
             task_prompt: The task or query to process
             name: Name for the agent
@@ -244,17 +237,11 @@ class SearchAgentCollection(ActionCollection):
                 self._color_log(f"⚠️ Task completed with no answer", Color.yellow)
 
             # Format response
-            formatted_message = f"""# Search Agent Execution Results
+            formatted_message = f"""# Search Agent Created Successfully
 
 **Agent ID:** `{metadata.agent_id}`
 **Agent Name:** `{metadata.name}`
 **Description:** {metadata.description}
-**Created At:** {metadata.created_at}
-
-## Configuration
-- **LLM Provider:** {metadata.llm_provider}
-- **LLM Model:** {metadata.llm_model_name}
-- **MCP Servers:** {', '.join(metadata.mcp_servers)}
 
 ## Task Results
 **Task:** {task_prompt}
@@ -356,7 +343,7 @@ class SearchAgentCollection(ActionCollection):
                 self._color_log(f"⚠️ Task completed with no answer", Color.yellow)
 
             # Format response
-            formatted_message = f"""# Search Agent Execution Results
+            formatted_message = f"""# Use Existing Search Agent Successfully
 
 **Agent ID:** `{metadata.agent_id}`
 **Agent Name:** `{metadata.name}`

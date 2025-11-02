@@ -343,7 +343,7 @@ class ImageAgentCollection(ActionCollection):
                 self._color_log(f"⚠️ Task completed with no answer", Color.yellow)
 
             # Format response
-            formatted_message = f"""# Existing Image Agent Executed Task
+            formatted_message = f"""# Use Existing Image Agent Successfully
 
 **Agent ID:** `{metadata.agent_id}`
 **Agent Name:** `{metadata.name}`

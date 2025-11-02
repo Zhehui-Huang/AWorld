@@ -26,7 +26,6 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import requests
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from pydantic.fields import FieldInfo
@@ -286,7 +285,10 @@ class OrchestratorAgentCollection(ActionCollection):
 
             # Create orchestrator instance
             agent, metadata = self._create_agent_instance(
-                name=name, description=description, available_agents=available_agents, parent_orchestrator_id=parent_orchestrator_id
+                name=name,
+                description=description,
+                available_agents=available_agents,
+                parent_orchestrator_id=parent_orchestrator_id,
             )
 
             self._color_log(f"{indent}✅ Orchestrator created with ID: {metadata.agent_id}", Color.green)
@@ -312,19 +314,13 @@ class OrchestratorAgentCollection(ActionCollection):
                 self._color_log(f"{indent}⚠️ Orchestration completed with no answer", Color.yellow)
 
             # Format response
-            formatted_message = f"""# Orchestrator Agent Execution Results
+            formatted_message = f"""# Orchestrator Agent Created Successfully
 
 **Orchestrator ID:** `{metadata.agent_id}`
 **Name:** `{metadata.name}`
 **Description:** {metadata.description}
 **Orchestration Level:** {metadata.orchestration_level}
 **Parent Orchestrator:** {metadata.parent_orchestrator_id or "None (Top Level)"}
-**Created At:** {metadata.created_at}
-
-## Configuration
-- **LLM Provider:** {metadata.llm_provider}
-- **LLM Model:** {metadata.llm_model_name}
-- **Available Agents:** {', '.join(metadata.available_agents)}
 
 ## Task Results
 **Task:** {task_prompt}
@@ -368,7 +364,7 @@ class OrchestratorAgentCollection(ActionCollection):
         self,
         agent_id: str = Field(description="The ID of an existing orchestrator to use"),
         task_prompt: str = Field(description="The task for the orchestrator to coordinate"),
-        max_steps: int = Field(default=25, description="Maximum steps for execution"),
+        max_steps: int = Field(default=50, description="Maximum steps for execution"),
     ) -> ActionResponse:
         """
         Use an existing orchestrator agent to execute a task.
@@ -430,7 +426,7 @@ class OrchestratorAgentCollection(ActionCollection):
                 self._color_log(f"{indent}⚠️ Orchestration completed with no answer", Color.yellow)
 
             # Format response
-            formatted_message = f"""# Orchestrator Agent Execution Results
+            formatted_message = f"""# Use Existing Orchestrator Agent Successfully
 
 **Orchestrator ID:** `{metadata.agent_id}`
 **Name:** `{metadata.name}`

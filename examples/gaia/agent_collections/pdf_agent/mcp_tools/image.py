@@ -6,11 +6,9 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-import pytesseract
 from dotenv import load_dotenv
-from PIL import Image, ImageEnhance, ImageFilter
+from PIL import Image
 from pydantic import BaseModel, Field
-from pydantic.fields import FieldInfo
 
 from aworld.config.conf import AgentConfig
 from aworld.logs.util import Color
@@ -220,19 +218,13 @@ class ImageCollection(ActionCollection):
         answer questions about images, or perform specific visual reasoning tasks.
 
         Args:
-            file_path: Path to the image file
-            task: Specific analysis task or question
+            file_path: Path to the image file for AI analysis
+            task: Specific analysis task or question about the image
 
         Returns:
             ActionResponse with AI analysis results and metadata
         """
         try:
-            # Handle FieldInfo objects
-            if isinstance(file_path, FieldInfo):
-                file_path = file_path.default
-            if isinstance(task, FieldInfo):
-                task = task.default
-
             start_time = time.time()
 
             # Validate input file
@@ -260,15 +252,12 @@ class ImageCollection(ActionCollection):
                 "height": original_metadata["height"],
                 "mode": original_metadata["mode"],
                 "format": original_metadata["format"],
-                # "has_transparency": original_metadata["has_transparency"],
-                # "processing_time": processing_time,
-                # "output_files": [],
+                "processing_time": processing_time,
+                "output_files": [],
                 "analysis_result": analysis_result,
-                # "output_format": "ai_analysis",
+                "output_format": "ai_analysis",
             }
-
             image_metadata = ImageMetadata(**metadata_dict)
-
             result_message = (
                 # f"Analysis Results for {file_path.name}:\n\n"
                 # f"**Task:** {task}\n\n"
@@ -307,9 +296,6 @@ class ImageCollection(ActionCollection):
             ActionResponse with detailed image metadata
         """
         try:
-            if isinstance(file_path, FieldInfo):
-                file_path = file_path.default
-
             start_time = time.time()
 
             # Validate input file
