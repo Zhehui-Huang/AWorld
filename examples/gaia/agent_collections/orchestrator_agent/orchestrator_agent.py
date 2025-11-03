@@ -20,7 +20,6 @@ Main functions:
 
 import json
 import os
-import time
 import traceback
 import uuid
 from pathlib import Path
@@ -45,9 +44,6 @@ class OrchestratorMetadata(BaseModel):
     agent_id: str
     name: str
     description: str
-    created_at: str
-    llm_provider: str
-    llm_model_name: str
     available_agents: list[str]
     orchestration_level: int
     parent_orchestrator_id: Optional[str] = None
@@ -191,9 +187,6 @@ class OrchestratorAgentCollection(ActionCollection):
             agent_id=agent_id,
             name=name,
             description=description,
-            created_at=time.strftime("%Y-%m-%d %H:%M:%S"),
-            llm_provider=llm_provider,
-            llm_model_name=llm_model_name,
             available_agents=actual_available_agents,
             orchestration_level=new_level,
             parent_orchestrator_id=parent_orchestrator_id,
@@ -338,11 +331,6 @@ class OrchestratorAgentCollection(ActionCollection):
                     "agent_id": metadata.agent_id,
                     "agent_name": metadata.name,
                     "description": metadata.description,
-                    "answer": answer,
-                    "task_prompt": task_prompt,
-                    "created_at": metadata.created_at,
-                    "llm_provider": metadata.llm_provider,
-                    "llm_model_name": metadata.llm_model_name,
                     "available_agents": metadata.available_agents,
                     "orchestration_level": metadata.orchestration_level,
                     "parent_orchestrator_id": metadata.parent_orchestrator_id,
@@ -401,6 +389,13 @@ class OrchestratorAgentCollection(ActionCollection):
             # Get existing orchestrator
             agent = self.agent_registry.get_agent(agent_id)
             metadata = self.agent_registry.get_metadata(agent_id)
+            
+            if not agent or not metadata:
+                return ActionResponse(
+                    success=False,
+                    message=f"Orchestrator ID '{agent_id}' exists in registry but agent or metadata is None",
+                    metadata={"error_type": "orchestrator_data_corrupted"},
+                )
 
             indent = "  " * self.orchestration_level
             self._color_log(f"{indent}🔄 Using existing orchestrator: {metadata.name} ({agent_id})", Color.cyan)
@@ -445,9 +440,9 @@ class OrchestratorAgentCollection(ActionCollection):
                     "agent_id": metadata.agent_id,
                     "agent_name": metadata.name,
                     "description": metadata.description,
-                    "answer": answer,
-                    "task_prompt": task_prompt,
+                    "available_agents": metadata.available_agents,
                     "orchestration_level": metadata.orchestration_level,
+                    "parent_orchestrator_id": metadata.parent_orchestrator_id,
                 },
             )
 
@@ -474,7 +469,6 @@ class OrchestratorAgentCollection(ActionCollection):
                 "agent_id": m.agent_id,
                 "name": m.name,
                 "description": m.description,
-                "created_at": m.created_at,
                 "orchestration_level": m.orchestration_level,
                 "available_agents": m.available_agents,
             }

@@ -18,13 +18,11 @@ Main functions:
 
 import json
 import os
-import time
 import traceback
 import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import requests
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from pydantic.fields import FieldInfo
@@ -44,9 +42,6 @@ class SearchAgentMetadata(BaseModel):
     agent_id: str
     name: str
     description: str
-    created_at: str
-    llm_provider: str
-    llm_model_name: str
     mcp_servers: list[str]
 
 
@@ -152,9 +147,6 @@ class SearchAgentCollection(ActionCollection):
             agent_id=agent_id,
             name=name,
             description=description,
-            created_at=time.strftime("%Y-%m-%d %H:%M:%S"),
-            llm_provider=llm_provider,
-            llm_model_name=llm_model_name,
             mcp_servers=available_servers,
         )
 
@@ -258,11 +250,6 @@ class SearchAgentCollection(ActionCollection):
                     "agent_id": metadata.agent_id,
                     "agent_name": metadata.name,
                     "description": metadata.description,
-                    "answer": answer,
-                    "task_prompt": task_prompt,
-                    "created_at": metadata.created_at,
-                    "llm_provider": metadata.llm_provider,
-                    "llm_model_name": metadata.llm_model_name,
                     "mcp_servers": metadata.mcp_servers,
                 },
             )
@@ -319,6 +306,13 @@ class SearchAgentCollection(ActionCollection):
             # Get existing agent
             agent = self.agent_registry.get_agent(agent_id)
             metadata = self.agent_registry.get_metadata(agent_id)
+            
+            if not agent or not metadata:
+                return ActionResponse(
+                    success=False,
+                    message=f"Agent ID '{agent_id}' exists in registry but agent or metadata is None",
+                    metadata={"error_type": "agent_data_corrupted"},
+                )
 
             self._color_log(f"🔄 Using existing search agent: {metadata.name} ({agent_id})", Color.cyan)
 
@@ -361,8 +355,7 @@ class SearchAgentCollection(ActionCollection):
                     "agent_id": metadata.agent_id,
                     "agent_name": metadata.name,
                     "description": metadata.description,
-                    "answer": answer,
-                    "task_prompt": task_prompt,
+                    "mcp_servers": metadata.mcp_servers,
                 },
             )
 
@@ -385,7 +378,7 @@ class SearchAgentCollection(ActionCollection):
         """
         # Get list of registered agents
         registered_agents = [
-            {"agent_id": m.agent_id, "name": m.name, "description": m.description, "created_at": m.created_at}
+            {"agent_id": m.agent_id, "name": m.name, "description": m.description}
             for m in self.agent_registry.list_agents()
         ]
 
