@@ -66,7 +66,7 @@ def example_1_basic_pdf_processing():
     
     # Task that requires PDF processing
     task_prompt = f"""
-    Extract the image from the pdf file {pdf_path}. Then, use image tool to get all labels from the image.
+    There is a section about pros and cons in {pdf_path}. Please extract the content of that section.
     """
 
     task = Task(
