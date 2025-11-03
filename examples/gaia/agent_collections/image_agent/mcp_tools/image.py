@@ -29,10 +29,10 @@ class ImageMetadata(BaseModel):
     mode: str | None = Field(default=None, description="Image color mode (RGB, RGBA, L, etc.)")
     format: str | None = Field(default=None, description="Image format (JPEG, PNG, etc.)")
     has_transparency: bool = Field(default=False, description="Whether image has transparency")
-    processing_time: float = Field(description="Time taken to process the image in seconds", exclude=True)
-    output_files: list[str] = Field(default_factory=list, description="Paths to generated output files")
-    extracted_text: str | None = Field(default=None, description="Text extracted via OCR")
-    analysis_result: str | None = Field(default=None, description="AI analysis result")
+    # processing_time: float = Field(description="Time taken to process the image in seconds", exclude=True)
+    # output_files: list[str] = Field(default_factory=list, description="Paths to generated output files")
+    # extracted_text: str | None = Field(default=None, description="Text extracted via OCR")
+    # analysis_result: str | None = Field(default=None, description="AI analysis result")
     compression_ratio: float | None = Field(default=None, description="Compression ratio if optimized")
     output_format: str = Field(description="Format of the processed output")
 
@@ -252,9 +252,9 @@ class ImageCollection(ActionCollection):
                 "height": original_metadata["height"],
                 "mode": original_metadata["mode"],
                 "format": original_metadata["format"],
-                "processing_time": processing_time,
-                "output_files": [],
-                "analysis_result": analysis_result,
+                # "processing_time": processing_time,
+                # "output_files": [],
+                # "analysis_result": analysis_result,
                 "output_format": "ai_analysis",
             }
             image_metadata = ImageMetadata(**metadata_dict)
@@ -321,8 +321,6 @@ class ImageCollection(ActionCollection):
                 mode=metadata["mode"],
                 format=metadata["format"],
                 has_transparency=metadata["has_transparency"],
-                processing_time=processing_time,
-                output_files=[],
                 output_format="metadata",
             )
 
