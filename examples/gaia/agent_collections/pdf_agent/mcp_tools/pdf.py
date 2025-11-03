@@ -122,8 +122,18 @@ class DocumentExtractionCollection(ActionCollection):
 
         for idx, (page_num, image_data) in enumerate(images.items()):
             try:
+                # Extract page number from page_num if it contains additional info
+                if isinstance(page_num, str) and "_page_" in page_num:
+                    # Extract page number from strings like "_page_11_Picture_0.jpeg"
+                    import re
+                    match = re.search(r'_page_(\d+)', page_num)
+                    actual_page_num = match.group(1) if match else page_num
+                else:
+                    import time
+                    actual_page_num = int(time.time() * 1000) % 1000000
+                
                 # Generate unique filename
-                image_filename = f"{file_stem}_page_{page_num}_img_{idx}.png"
+                image_filename = f"{file_stem}_page_{actual_page_num}_img_{idx}.png"
                 image_path = self._media_output_dir / image_filename
 
                 # Save image data
@@ -136,11 +146,11 @@ class DocumentExtractionCollection(ActionCollection):
                         f.write(image_data)
                 else:
                     # Handle other formats
-                    self.logger.warning(f"Unknown image data type for page {page_num}: {type(image_data)}")
+                    self.logger.warning(f"Unknown image data type for page {actual_page_num}: {type(image_data)}")
                     continue
 
                 saved_media.append(
-                    {"type": "image", "path": str(image_path), "page": str(page_num), "filename": image_filename}
+                    {"type": "image", "path": str(image_path), "page": str(actual_page_num), "filename": image_filename}
                 )
 
                 self._color_log(f"Saved image: {image_filename}", Color.blue)

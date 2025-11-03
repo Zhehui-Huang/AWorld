@@ -7,7 +7,7 @@ import traceback
 import uuid
 from collections import OrderedDict
 from datetime import datetime
-from typing import Dict, Any, List, Callable, Optional, Union
+from typing import Dict, Any, List, Callable, Optional
 
 import aworld.trace as trace
 from aworld.core.agent.agent_desc import get_agent_desc
@@ -389,7 +389,7 @@ class Agent(BaseAgent[Observation, List[ActionModel]]):
 
     def _log_messages(self, messages: List[Dict[str, Any]], **kwargs) -> None:
         """Log the sequence of messages for debugging purposes"""
-        # logger.info(f"[agent] Invoking LLM with {len(messages)} messages:")
+        logger.info(f"[agent] Invoking LLM with {len(messages)} messages:")
         logger.debug(f"[agent] use tools: {self.tools}")
         for i, msg in enumerate(messages):
             prefix = msg.get('role')
@@ -611,43 +611,6 @@ class Agent(BaseAgent[Observation, List[ActionModel]]):
         await self.send_llm_response_output(llm_response, agent_result, message.context, kwargs.get("outputs"))
         return policy_result
 
-    def _extract_simple_tool_result(self, tool_result: Any) -> str:
-        """Extract simple message content from complex tool result structure.
-        
-        Args:
-            tool_result: Tool result that may be a complex structure, JSON string, or simple string
-            
-        Returns:
-            Simple string message content
-        """
-        # If it's a string, try to parse it as JSON first
-        if isinstance(tool_result, str):
-            try:
-                parsed = json.loads(tool_result)
-                # Recursively process the parsed object
-                return self._extract_simple_tool_result(parsed)
-            except (json.JSONDecodeError, TypeError):
-                # Not JSON, return as-is
-                return tool_result
-        
-        # If it's a list, extract messages from each item
-        if isinstance(tool_result, list):
-            messages = []
-            for item in tool_result:
-                if isinstance(item, dict) and 'message' in item:
-                    messages.append(item['message'])
-                else:
-                    # Recursively process nested structures
-                    messages.append(self._extract_simple_tool_result(item))
-            return '\n'.join(messages)
-        
-        # If it's a dict with a 'message' field, extract it
-        if isinstance(tool_result, dict) and 'message' in tool_result:
-            return tool_result['message']
-        
-        # Otherwise, convert to string
-        return str(tool_result)
-
     async def execution_tools(self, actions: List[ActionModel], message: Message = None, **kwargs) -> List[ActionModel]:
         """Tool execution operations.
 
@@ -672,13 +635,8 @@ class Agent(BaseAgent[Observation, List[ActionModel]]):
                 logger.warning(f"Agent {self.id()} _execute_tool failed with exception: {act_result.msg}",
                                color=Color.red)
                 continue
-            
-            # Create ActionResult with the raw answer, extraction will happen in _add_tool_result_to_memory
-            action_result = ActionResult(tool_call_id=act.tool_call_id, tool_name=act.tool_name, content=act_result.answer)
-            
-            tool_results.append(action_result)
-            await self._add_tool_result_to_memory(act.tool_call_id, action_result,
-                                                  context=message.context)
+            tool_results.append(ActionResult(tool_call_id=act.tool_call_id, tool_name=act.tool_name, content=act_result.answer))
+            await self._add_tool_result_to_memory(act.tool_call_id, act_result.answer, context=message.context)
         result = sync_exec(self.tools_aggregate_func, tool_results)
         return result
 
@@ -691,9 +649,7 @@ class Agent(BaseAgent[Observation, List[ActionModel]]):
         """
         content = ""
         for res in tool_results:
-            # Extract simple content from potentially complex structure
-            simple_content = self._extract_simple_tool_result(res.content)
-            content += f"{simple_content}\n"
+            content += f"{res.content}\n"
         return [ActionModel(agent_name=self.id(), policy_info=content)]
 
     async def build_llm_input(self,
@@ -914,7 +870,7 @@ class Agent(BaseAgent[Observation, List[ActionModel]]):
         )
         await self.memory.add(ai_message, agent_memory_config=self.memory_config)
 
-    async def _add_tool_result_to_memory(self, tool_call_id: str, tool_result: Union[ActionResult, str], context: Context):
+    async def _add_tool_result_to_memory(self, tool_call_id: str, tool_result: ActionResult, context: Context):
         """Add tool result to memory"""
         if hasattr(tool_result, 'content') and isinstance(tool_result.content, str) and tool_result.content.startswith(
                 "data:image"):
@@ -937,18 +893,13 @@ class Agent(BaseAgent[Observation, List[ActionModel]]):
         else:
             await self._do_add_tool_result_to_memory(tool_call_id, tool_result, context)
 
-    async def _do_add_tool_result_to_memory(self, tool_call_id: str, tool_result: Union[ActionResult, str], context: Context):
+    async def _do_add_tool_result_to_memory(self, tool_call_id: str, tool_result: ActionResult, context: Context):
         """Add tool result to memory"""
         tool_use_summary = None
         if isinstance(tool_result, ActionResult):
             tool_use_summary = tool_result.metadata.get("tool_use_summary")
-        
-        # tool_result.content is already a string
-        tool_res_content = tool_result.content if hasattr(tool_result, 'content') else tool_result
-        content = self._extract_simple_tool_result(tool_res_content)
-        
         await self.memory.add(MemoryToolMessage(
-            content=content,
+            content=tool_result.content if hasattr(tool_result, 'content') else tool_result,
             tool_call_id=tool_call_id,
             status="success",
             metadata=MessageMetadata(
