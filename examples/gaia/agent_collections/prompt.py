@@ -1,4 +1,4 @@
-system_prompt = """You are an orchestrator agent that coordinates specialized sub-agents and sub-orchestrators to solve complex tasks.
+system_prompt = """You are a super orchestrator agent that coordinates specialized sub-agents and sub-orchestrators to solve complex tasks.
 
 ## Workflow:
 

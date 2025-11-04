@@ -307,22 +307,7 @@ class OrchestratorAgentCollection(ActionCollection):
                 self._color_log(f"{indent}⚠️ Orchestration completed with no answer", Color.yellow)
 
             # Format response
-            formatted_message = f"""# Orchestrator Agent Created Successfully
-
-**Orchestrator ID:** `{metadata.agent_id}`
-**Name:** `{metadata.name}`
-**Description:** {metadata.description}
-**Orchestration Level:** {metadata.orchestration_level}
-**Parent Orchestrator:** {metadata.parent_orchestrator_id or "None (Top Level)"}
-
-## Task Results
-**Task:** {task_prompt}
-
-**Answer:** {answer if answer else "No answer generated"}
-
----
-*Orchestrator ID `{metadata.agent_id}` is registered and can be reused with `mcp_use_existing_orchestrator_agent`.*
-"""
+            formatted_message = f"""**Answer:** {answer if answer else "No answer generated"}"""
 
             return ActionResponse(
                 success=True,
@@ -421,17 +406,7 @@ class OrchestratorAgentCollection(ActionCollection):
                 self._color_log(f"{indent}⚠️ Orchestration completed with no answer", Color.yellow)
 
             # Format response
-            formatted_message = f"""# Use Existing Orchestrator Agent Successfully
-
-**Orchestrator ID:** `{metadata.agent_id}`
-**Name:** `{metadata.name}`
-**Description:** {metadata.description}
-**Orchestration Level:** {metadata.orchestration_level}
-
-## Task Results
-**Task:** {task_prompt}
-**Answer:** {answer if answer else "No answer generated"}
-"""
+            formatted_message = f"""**Answer:** {answer if answer else "No answer generated"}"""
 
             return ActionResponse(
                 success=True,

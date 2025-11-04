@@ -238,19 +238,7 @@ class ImageAgentCollection(ActionCollection):
                 self._color_log(f"⚠️ Task completed with no answer", Color.yellow)
 
             # Format response
-            formatted_message = f"""# Image Agent Created Successfully
-
-**Agent ID:** `{metadata.agent_id}`
-**Agent Name:** `{metadata.name}`
-**Description:** {metadata.description}
-
-## Task Results
-**Task:** {task_prompt}
-**Answer:** {answer if answer else "No answer generated"}
-
----
-*The agent ID `{metadata.agent_id}` has been registered and can be reused with `mcp_use_existing_image_agent` for future tasks.*
-"""
+            formatted_message = f"""**Answer:** {answer if answer else "No answer generated"}"""
 
             return ActionResponse(
                 success=True,
@@ -338,16 +326,7 @@ class ImageAgentCollection(ActionCollection):
                 self._color_log(f"⚠️ Task completed with no answer", Color.yellow)
 
             # Format response
-            formatted_message = f"""# Use Existing Image Agent Successfully
-
-**Agent ID:** `{metadata.agent_id}`
-**Agent Name:** `{metadata.name}`
-**Description:** {metadata.description}
-
-## Task Results
-**Task:** {task_prompt}
-**Answer:** {answer if answer else "No answer generated"}
-"""
+            formatted_message = f"""**Answer:** {answer if answer else "No answer generated"}"""
 
             return ActionResponse(
                 success=True,
