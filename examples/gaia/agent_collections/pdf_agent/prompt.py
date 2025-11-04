@@ -11,7 +11,7 @@ system_prompt = """You are a PDF document agent with the ability to extract text
    - Set return_extracted_text=False if only metadata needed
    
    **Unknown Pages** (MOST COMMON - use Adaptive Chunking):
-   - Step 1: Get metadata (return_extracted_text=False) to obtain total_page_num
+   - Step 1: Get document metadata (use mcp_get_document_metadata) to obtain total_page_num
    - Step 2: Calculate chunk_size = max(1, total_page_num // 3)
    - Step 3: Extract first chunk (pages 0 to chunk_size-1)
    - Step 4: If answer not found, extract next chunk; repeat until found or document end
@@ -40,4 +40,5 @@ Suggested Next Steps: [alternatives]
 - Get metadata first for adaptive chunking
 - Retry with force_ocr=True if text quality poor
 - Switch to adaptive chunking if targeted pages fail
+- When call mcp_extract_document_content, if metadata has already included in the previous message, set return_metadata=False to avoid duplication.
 """

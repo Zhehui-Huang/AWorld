@@ -309,13 +309,14 @@ class DocumentExtractionCollection(ActionCollection):
         self,
         file_path: str = Field(description="Path to the PDF document file to extract content from"),
         output_format: Literal["markdown", "json", "html"] = Field(default="markdown", description="Output format: 'markdown', 'json', or 'html'"),
-        extract_images: bool = Field(default=True, description="Whether to extract and save images from the document"),
+        extract_images: bool = Field(default=True, description="Whether to extract and save images from the whole document"),
         save_extracted_text_to_file: bool = Field(default=False, description="Save extracted text to a local file"),  # New parameter
         use_llm: bool = Field(default=False, description="Use LLM for enhanced accuracy (requires additional setup)"),
         page_range: str | None = Field(default=None, description="Specific pages to process (e.g., '0,5-10,20')"),
         force_ocr: bool = Field(default=False, description="Force OCR processing on the entire document"),
         format_lines: bool = Field(default=False, description="Reformat lines using local OCR model for better quality"),
-        return_extracted_text: bool = Field(default=True, description="Return the extracted text content in the response")
+        return_extracted_text: bool = Field(default=True, description="Return the extracted text content in the response"),
+        return_metadata: bool = Field(default=True, description="Return metadata in the response. If metadata has already included in the previous message, set this to False to avoid duplication.")
     ) -> ActionResponse:
         """Extract content from PDF documents using marker package.
 
@@ -325,6 +326,8 @@ class DocumentExtractionCollection(ActionCollection):
         - Image and media extraction
         - Metadata collection
         - LLM-optimized output formatting
+        - Optional page range selection
+        - OCR processing support
 
         Args:
             args: Document extraction arguments including file path and options
@@ -349,6 +352,10 @@ class DocumentExtractionCollection(ActionCollection):
                 force_ocr = force_ocr.default
             if isinstance(format_lines, FieldInfo):
                 format_lines = format_lines.default
+            if isinstance(return_extracted_text, FieldInfo):
+                return_extracted_text = return_extracted_text.default
+            if isinstance(return_metadata, FieldInfo):
+                return_metadata = return_metadata.default
 
             # Validate input file
             file_path: Path = self._validate_file_path(file_path)
@@ -387,21 +394,28 @@ class DocumentExtractionCollection(ActionCollection):
 
             # Prepare metadata
             file_stats = file_path.stat()
-            document_metadata = DocumentMetadata(
-                file_name=file_path.name,
-                file_size=file_stats.st_size,
-                file_type=file_path.suffix.lower(),
-                absolute_path=str(file_path.absolute()),
-                page_count=extraction_result["metadata"].get("page_count"),
-                # processing_time=extraction_result["processing_time"],
-                extracted_images=[media["path"] for media in saved_media if media["type"] == "image"],
-                extracted_media=saved_media,
-                output_format=output_format,
-                llm_enhanced=use_llm,
-                ocr_applied=force_ocr or format_lines,
-                extracted_text_file_path=saved_text_path_str,
-                total_page_num=total_pages,
-            )
+            if return_metadata:
+                document_metadata = DocumentMetadata(
+                    file_name=file_path.name,
+                    file_size=file_stats.st_size,
+                    file_type=file_path.suffix.lower(),
+                    absolute_path=str(file_path.absolute()),
+                    page_count=extraction_result["metadata"].get("page_count", total_pages),
+                    extracted_images=[media["path"] for media in saved_media if media["type"] == "image"],
+                    extracted_media=saved_media,
+                    output_format=output_format,
+                    llm_enhanced=use_llm,
+                    ocr_applied=force_ocr or format_lines,
+                    extracted_text_file_path=saved_text_path_str,
+                    total_page_num=total_pages,
+                )
+                response_metadata = document_metadata.model_dump()
+            else:
+                response_metadata = {}
+                if extract_images:
+                    response_metadata["extracted_images"] = [media["path"] for media in saved_media if media["type"] == "image"]
+                if saved_media:
+                    response_metadata["extracted_media"] = saved_media
 
             self._color_log(
                 f"Successfully extracted content from {file_path.name} "
@@ -409,7 +423,7 @@ class DocumentExtractionCollection(ActionCollection):
                 Color.green,
             )
 
-            return ActionResponse(success=True, message=formatted_content, metadata=document_metadata.model_dump())
+            return ActionResponse(success=True, message=formatted_content, metadata=response_metadata)
 
         except FileNotFoundError as e:
             self.logger.error(f"File not found: {str(e)}: {traceback.format_exc()}")
@@ -429,6 +443,95 @@ class DocumentExtractionCollection(ActionCollection):
                 success=False,
                 message=f"Document extraction failed: {str(e)}",
                 metadata={"error_type": "extraction_error"},
+            )
+
+    def mcp_get_document_metadata(
+        self,
+        file_path: str = Field(description="Path to the PDF document file to get metadata from"),
+    ) -> ActionResponse:
+        """Get metadata from PDF document without extracting full content.
+
+        This is a lightweight operation that quickly retrieves document information including:
+        - File name and size
+        - Total number of pages
+        - File type and absolute path
+        
+        This tool is useful when you only need to know document properties (especially page count)
+        before performing more expensive operations like content extraction.
+
+        Args:
+            file_path: Path to the PDF document file
+
+        Returns:
+            ActionResponse with document metadata including total_page_num
+        """
+        try:
+            if isinstance(file_path, FieldInfo):
+                file_path = file_path.default
+            
+            # Validate input file
+            file_path: Path = self._validate_file_path(file_path)
+            self._color_log(f"Getting metadata for: {file_path.name}", Color.cyan)
+
+            # Get page count
+            total_pages = self._get_pdf_page_count(file_path)
+            
+            if total_pages is None:
+                return ActionResponse(
+                    success=False,
+                    message="Unable to read PDF metadata. pypdf/PyPDF2 library may not be available.",
+                    metadata={"error_type": "library_unavailable"}
+                )
+
+            # Prepare metadata
+            file_stats = file_path.stat()
+            document_metadata = DocumentMetadata(
+                file_name=file_path.name,
+                file_size=file_stats.st_size,
+                file_type=file_path.suffix.lower(),
+                absolute_path=str(file_path.absolute()),
+                page_count=total_pages,
+                extracted_images=[],
+                extracted_media=[],
+                output_format="N/A",
+                llm_enhanced=False,
+                ocr_applied=False,
+                extracted_text_file_path=None,
+                total_page_num=total_pages,
+            )
+
+            self._color_log(
+                f"Successfully retrieved metadata for {file_path.name} ({total_pages} pages)",
+                Color.green,
+            )
+
+            metadata_summary = (
+                f"Document Metadata:\n"
+                f"- File: {document_metadata.file_name}\n"
+                f"- Total Pages: {total_pages}\n"
+                f"- File Size: {document_metadata.file_size:,} bytes\n"
+                f"- Absolute Path: {document_metadata.absolute_path}"
+            )
+
+            return ActionResponse(
+                success=True,
+                message=metadata_summary,
+                metadata={}
+            )
+
+        except FileNotFoundError as e:
+            self.logger.error(f"File not found: {str(e)}")
+            return ActionResponse(
+                success=False,
+                message=f"File not found: {str(e)}",
+                metadata={"error_type": "file_not_found"}
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to get document metadata: {str(e)}: {traceback.format_exc()}")
+            return ActionResponse(
+                success=False,
+                message=f"Failed to get document metadata: {str(e)}",
+                metadata={"error_type": "metadata_error"}
             )
 
     def mcp_list_supported_formats(self) -> ActionResponse:

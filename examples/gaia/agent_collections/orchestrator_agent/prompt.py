@@ -47,6 +47,8 @@ Format rules:
 - **Failure**: Only after 2-3 recovery attempts → `<answer>## NO ANSWER ##</answer>`
 
 **Key Rules:**
+- **ALWAYS prefer to reuse existing agents/orchestrators** via `mcp_use_existing_*_agent`. Create new ones ONLY if no suitable match exists.
+- **REUSE agents even after failures** : If an agent failed, retry with it using different strategies/parameters rather than creating a new one.
 - Provide complete context to sub-orchestrators
 - Execute independent tasks in parallel
 - Implement recovery before accepting ## NO ANSWER ##
