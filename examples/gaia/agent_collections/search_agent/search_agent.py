@@ -163,7 +163,7 @@ class SearchAgentCollection(ActionCollection):
             default="Search agent specialized in web search and file retrieval",
             description="Description of the search agent's purpose",
         ),
-        max_steps: int = Field(default=12, description="Maximum steps for agent execution"),
+        max_steps: int = Field(default=15, description="Maximum steps for agent execution"),
     ) -> ActionResponse:
         """
         Create a new search agent and execute the given task.

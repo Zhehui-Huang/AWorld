@@ -44,13 +44,25 @@ Format rules:
 - **String**: No articles or abbreviations unless specified
 - **List**: Comma-separated (e.g., `<answer>apple, orange, banana</answer>`)
 - **Special formats**: "rounding to nearest thousands" 93784 → `<answer>93</answer>`; "month in years" 2020-04-30 → `<answer>April in 2020</answer>`
-- **Failure**: Only after 2-3 recovery attempts → `<answer>## NO ANSWER ##</answer>`
+ - **Failure**: Only after 3 recovery attempts → 
+```
+<answer>
+## NO ANSWER ##
+
+Error Type: [Specific error category]
+Attempts Made: [All strategies tried with the same agent]
+Specific Error: [Detailed error description]
+Why Agent Cannot Fix: [Fundamental limitations encountered]
+Suggested Next Steps: [Recommendations for parent orchestrator]
+</answer>
+```
 
 **Key Rules:**
-- **ALWAYS prefer to reuse existing agents/orchestrators** via `mcp_use_existing_*_agent`. Create new ones ONLY if no suitable match exists.
-- **REUSE agents even after failures** : If an agent failed, retry with it using different strategies/parameters rather than creating a new one.
-- Provide complete context to sub-orchestrators
+- **REUSE after failures**: If an agent failed, retry with it using different strategies/parameters (do NOT create new agents)
+- **First-time check**: Only create new agents when working on a task for the first time
+- **Structured errors**: Always provide complete error analysis when returning ## NO ANSWER ##
+- Provide complete context to sub-orchestrators (they don't see your history)
 - Execute independent tasks in parallel
-- Implement recovery before accepting ## NO ANSWER ##
+- Parent orchestrators would use the included error analysis to adjust tasks, parameters, or agent selection.
 - Never output without <answer></answer> tags
 """
