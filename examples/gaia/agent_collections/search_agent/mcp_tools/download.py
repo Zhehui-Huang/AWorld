@@ -40,9 +40,9 @@ class DownloadResult(BaseModel):
     url: str
     file_path: str
     success: bool
-    file_size: int | None = None
-    duration: str
-    timestamp: str
+    # file_size: int | None = None
+    # duration: str
+    # timestamp: str
     error_message: str | None = None
 
 
@@ -51,10 +51,10 @@ class DownloadMetadata(BaseModel):
 
     url: str
     output_path: str
-    timeout_seconds: int
+    # timeout_seconds: int
     overwrite_enabled: bool
-    execution_time: float | None = None
-    file_size_bytes: int | None = None
+    # execution_time: float | None = None
+    # file_size_bytes: int | None = None
     content_type: str | None = None
     status_code: int | None = None
     error_type: str | None = None
@@ -156,8 +156,8 @@ class DownloadCollection(ActionCollection):
                 f"URL: {result.url}",
                 f"File Path: {result.file_path}",
                 f"Status: {'SUCCESS' if result.success else 'FAILED'}",
-                f"Duration: {result.duration}",
-                f"Timestamp: {result.timestamp}",
+                # f"Duration: {result.duration}",
+                # f"Timestamp: {result.timestamp}",
             ]
 
             if result.file_size is not None:
@@ -176,8 +176,8 @@ class DownloadCollection(ActionCollection):
                 f"**URL:** `{result.url}`",
                 f"**File Path:** `{result.file_path}`",
                 f"**Status:** {'SUCCESS' if result.success else 'FAILED'}",
-                f"**Duration:** {result.duration}",
-                f"**Timestamp:** {result.timestamp}",
+                # f"**Duration:** {result.duration}",
+                # f"**Timestamp:** {result.timestamp}",
             ]
 
             if result.file_size is not None:
@@ -364,10 +364,10 @@ class DownloadCollection(ActionCollection):
             metadata = DownloadMetadata(
                 url=url,
                 output_path=str(output_path),
-                timeout_seconds=timeout,
+                # timeout_seconds=timeout,
                 overwrite_enabled=overwrite,
-                execution_time=execution_time,
-                file_size_bytes=result.file_size,
+                # execution_time=execution_time,
+                # file_size_bytes=result.file_size,
                 headers_used=self.headers is not None,
             )
 

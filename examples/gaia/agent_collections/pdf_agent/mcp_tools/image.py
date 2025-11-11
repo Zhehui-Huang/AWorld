@@ -42,7 +42,6 @@ class ImageCollection(ActionCollection):
 
     Supports various image operations including:
     - Metadata extraction
-    - OCR (Optical Character Recognition)
     - AI-powered image analysis and reasoning
     """
 
@@ -205,12 +204,12 @@ class ImageCollection(ActionCollection):
         return f"data:{mime_type};base64,{img_base64}"
 
     def mcp_analyze_image_ai(
-            self,
-            file_path: str = Field(description="Path to the image file for AI analysis"),
-            task: str = Field(
-                default="Describe what you see in this image",
-                description="Specific analysis task or question about the image",
-            ),
+        self,
+        file_path: str = Field(description="Path to the image file for AI analysis"),
+        task: str = Field(
+            default="Describe what you see in this image",
+            description="Specific analysis task or question about the image",
+        ),
     ) -> ActionResponse:
         """Analyze image content using AI vision models.
 
@@ -245,32 +244,21 @@ class ImageCollection(ActionCollection):
             # Create metadata object
             metadata_dict = {
                 "file_name": file_path.name,
-                "file_size": file_path.stat().st_size,
-                "file_type": file_path.suffix.lower(),
+                # "file_size": file_path.stat().st_size,
+                # "file_type": file_path.suffix.lower(),
                 "absolute_path": str(file_path.absolute()),
-                "width": original_metadata["width"],
-                "height": original_metadata["height"],
-                "mode": original_metadata["mode"],
-                "format": original_metadata["format"],
+                # "width": original_metadata["width"],
+                # "height": original_metadata["height"],
+                # "mode": original_metadata["mode"],
+                # "format": original_metadata["format"],
                 # "processing_time": processing_time,
                 # "output_files": [],
                 # "analysis_result": analysis_result,
-                "output_format": "ai_analysis",
+                # "output_format": "ai_analysis",
             }
-            image_metadata = ImageMetadata(**metadata_dict)
-            result_message = (
-                # f"Analysis Results for {file_path.name}:\n\n"
-                # f"**Task:** {task}\n\n"
-                f"**Analysis Results:**\n{analysis_result}\n\n"
-                # f"**Image Info:**\n"
-                # f"- Dimensions: {original_metadata['width']}x{original_metadata['height']}\n"
-                # f"- Format: {original_metadata['format']}\n"
-                # f"- Processing time: {processing_time:.2f}s"
-            )
-
             self._color_log(f"AI analysis completed in {processing_time:.2f}s", Color.green)
 
-            return ActionResponse(success=True, message=result_message, metadata=image_metadata.model_dump())
+            return ActionResponse(success=True, message=analysis_result, metadata=metadata_dict)
 
         except Exception as e:
             self.logger.error(f"Image analysis failed: {str(e)}: {traceback.format_exc()}")
@@ -281,8 +269,8 @@ class ImageCollection(ActionCollection):
             )
 
     def mcp_get_image_metadata(
-            self,
-            file_path: str = Field(description="Path to the image file to analyze"),
+        self,
+        file_path: str = Field(description="Path to the image file to analyze"),
     ) -> ActionResponse:
         """Extract comprehensive metadata from image files.
 

@@ -42,7 +42,6 @@ class ImageCollection(ActionCollection):
 
     Supports various image operations including:
     - Metadata extraction
-    - OCR (Optical Character Recognition)
     - AI-powered image analysis and reasoning
     """
 
@@ -164,18 +163,18 @@ class ImageCollection(ActionCollection):
             save_kwargs["quality"] = 95
         elif output_format.upper() == "PNG":
             save_kwargs["compress_level"] = 6
-        
+
         image.save(buffer, **save_kwargs)
 
         mime_type = f"image/{output_format.lower()}"
         img_base64 = base64.b64encode(buffer.getvalue()).decode()
 
         return f"data:{mime_type};base64,{img_base64}"
-    
+
     def _file_to_base64(self, file_path: Path) -> str:
         """Convert image file directly to base64 string without PIL processing.
-        
-        This method reads the raw file bytes, which can be more reliable for 
+
+        This method reads the raw file bytes, which can be more reliable for
         AI analysis as it preserves the original encoding.
 
         Args:
@@ -197,11 +196,11 @@ class ImageCollection(ActionCollection):
             '.tif': 'image/tiff',
         }
         mime_type = mime_map.get(ext, 'image/png')
-        
+
         # Read raw file bytes
         with open(file_path, "rb") as f:
             img_base64 = base64.b64encode(f.read()).decode("utf-8")
-        
+
         return f"data:{mime_type};base64,{img_base64}"
 
     def mcp_analyze_image_ai(
@@ -245,32 +244,21 @@ class ImageCollection(ActionCollection):
             # Create metadata object
             metadata_dict = {
                 "file_name": file_path.name,
-                "file_size": file_path.stat().st_size,
-                "file_type": file_path.suffix.lower(),
+                # "file_size": file_path.stat().st_size,
+                # "file_type": file_path.suffix.lower(),
                 "absolute_path": str(file_path.absolute()),
-                "width": original_metadata["width"],
-                "height": original_metadata["height"],
-                "mode": original_metadata["mode"],
-                "format": original_metadata["format"],
+                # "width": original_metadata["width"],
+                # "height": original_metadata["height"],
+                # "mode": original_metadata["mode"],
+                # "format": original_metadata["format"],
                 # "processing_time": processing_time,
                 # "output_files": [],
                 # "analysis_result": analysis_result,
-                "output_format": "ai_analysis",
+                # "output_format": "ai_analysis",
             }
-            image_metadata = ImageMetadata(**metadata_dict)
-            result_message = (
-                # f"Analysis Results for {file_path.name}:\n\n"
-                # f"**Task:** {task}\n\n"
-                f"**Analysis Results:**\n{analysis_result}\n\n"
-                # f"**Image Info:**\n"
-                # f"- Dimensions: {original_metadata['width']}x{original_metadata['height']}\n"
-                # f"- Format: {original_metadata['format']}\n"
-                # f"- Processing time: {processing_time:.2f}s"
-            )
-
             self._color_log(f"AI analysis completed in {processing_time:.2f}s", Color.green)
 
-            return ActionResponse(success=True, message=result_message, metadata=image_metadata.model_dump())
+            return ActionResponse(success=True, message=analysis_result, metadata=metadata_dict)
 
         except Exception as e:
             self.logger.error(f"Image analysis failed: {str(e)}: {traceback.format_exc()}")

@@ -46,7 +46,7 @@ class SearchMetadata(BaseModel):
     query: str
     search_engine: str
     total_results: int
-    search_time: float | None = None
+    # search_time: float | None = None
     language: str = "en"
     country: str = "us"
     safe_search: bool = True
@@ -262,7 +262,7 @@ class SearchCollection(ActionCollection):
                 query=validated_query,
                 search_engine="google",
                 total_results=len(search_results),
-                search_time=search_time,
+                # search_time=search_time,
                 language=language,
                 country=country,
                 safe_search=safe_search,

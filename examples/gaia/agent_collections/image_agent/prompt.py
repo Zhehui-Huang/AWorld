@@ -17,11 +17,11 @@ Your `FORMATTED ANSWER` should be concise:
   - "month in years": `2020-04-30` → `<image agent answer>April in 2020</image agent answer>`
 
 **NO ANSWER PROTOCOL:**
-Return with following format only after trying multiple approaches (OCR standard/preprocessed, vision AI, different prompts). Include:
+Return with following format only after trying multiple approaches (different prompts). Include:
 ```
 <image agent answer>
 ## NO ANSWER ##
-Error Type: [File Access Error | Image Quality Issue | OCR Failure | Content Not Found]
+Error Type: [File Access Error | Image Quality Issue | Content Not Found]
 Attempts Made: [tools used, parameters tried]
 Specific Error: [exact problem]
 Why Agent Cannot Fix: [root cause]
