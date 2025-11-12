@@ -22,6 +22,16 @@
                 "IMAGE_LLM_BASE_URL": "${IMAGE_LLM_BASE_URL}"
             },
             "client_session_timeout_seconds": 1000.0
+        },
+        "memory_tools": {
+            "command": "python",
+            "args": [
+                "-m",
+                "examples.gaia.mcp_collections.memory_tools"
+            ],
+            "env": {
+            },
+            "client_session_timeout_seconds": 9999.0
         }
     }
 }

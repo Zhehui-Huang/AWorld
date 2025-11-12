@@ -36,6 +36,7 @@ from aworld.logs.util import Color, logger
 from aworld.runner import Runners
 from examples.gaia.agent_collections.orchestrator_agent.prompt import system_prompt
 from examples.gaia.mcp_collections.base import ActionArguments, ActionCollection, ActionResponse
+from examples.gaia.agent_collections.shared_memory import get_agent_memory
 
 
 class OrchestratorMetadata(BaseModel):
@@ -286,12 +287,32 @@ class OrchestratorAgentCollection(ActionCollection):
 
             self._color_log(f"{indent}✅ Orchestrator created with ID: {metadata.agent_id}", Color.green)
 
+            # Retrieve relevant memories from past tasks
+            memory = get_agent_memory()
+            relevant_memories = memory.retrieve_relevant_memories(
+                agent_type="orchestrator_agent",
+                task_description=task_prompt,
+                max_results=3
+            )
+            
+            if relevant_memories:
+                self._color_log(
+                    f"{indent}🧠 Retrieved {len(relevant_memories)} relevant past experiences",
+                    Color.blue
+                )
+            
+            # Enhance task prompt with past experiences
+            enhanced_task_prompt = task_prompt
+            if relevant_memories:
+                memory_context = memory.format_memories_for_prompt(relevant_memories)
+                enhanced_task_prompt = f"{task_prompt}\n\n{memory_context}"
+
             # Execute task with the orchestrator
             self._color_log(f"{indent}🚀 Orchestrating task: {task_prompt[:100]}...", Color.cyan)
 
             task = Task(
                 id=str(uuid.uuid4().hex),
-                input=task_prompt,
+                input=enhanced_task_prompt,
                 agent=agent,
                 conf=TaskConfig(max_steps=max_steps),
             )
@@ -385,12 +406,32 @@ class OrchestratorAgentCollection(ActionCollection):
             indent = "  " * self.orchestration_level
             self._color_log(f"{indent}🔄 Using existing orchestrator: {metadata.name} ({agent_id})", Color.cyan)
 
+            # Retrieve relevant memories from past tasks
+            memory = get_agent_memory()
+            relevant_memories = memory.retrieve_relevant_memories(
+                agent_type="orchestrator_agent",
+                task_description=task_prompt,
+                max_results=3
+            )
+            
+            if relevant_memories:
+                self._color_log(
+                    f"{indent}🧠 Retrieved {len(relevant_memories)} relevant past experiences",
+                    Color.blue
+                )
+            
+            # Enhance task prompt with past experiences
+            enhanced_task_prompt = task_prompt
+            if relevant_memories:
+                memory_context = memory.format_memories_for_prompt(relevant_memories)
+                enhanced_task_prompt = f"{task_prompt}\n\n{memory_context}"
+
             # Execute task
             self._color_log(f"{indent}🚀 Orchestrating task: {task_prompt[:100]}...", Color.cyan)
 
             task = Task(
                 id=str(uuid.uuid4().hex),
-                input=task_prompt,
+                input=enhanced_task_prompt,
                 agent=agent,
                 conf=TaskConfig(max_steps=max_steps),
             )

@@ -34,6 +34,7 @@ from aworld.logs.util import Color, logger
 from aworld.runner import Runners
 from examples.gaia.agent_collections.search_agent.prompt import system_prompt
 from examples.gaia.mcp_collections.base import ActionArguments, ActionCollection, ActionResponse
+from examples.gaia.agent_collections.shared_memory import get_agent_memory
 
 
 class SearchAgentMetadata(BaseModel):
@@ -208,12 +209,32 @@ class SearchAgentCollection(ActionCollection):
 
             self._color_log(f"✅ Agent created with ID: {metadata.agent_id}", Color.green)
 
+            # Retrieve relevant memories from past tasks
+            memory = get_agent_memory()
+            relevant_memories = memory.retrieve_relevant_memories(
+                agent_type="search_agent",
+                task_description=task_prompt,
+                max_results=3
+            )
+            
+            if relevant_memories:
+                self._color_log(
+                    f"🧠 Retrieved {len(relevant_memories)} relevant past experiences",
+                    Color.blue
+                )
+            
+            # Enhance task prompt with past experiences
+            enhanced_task_prompt = task_prompt
+            if relevant_memories:
+                memory_context = memory.format_memories_for_prompt(relevant_memories)
+                enhanced_task_prompt = f"{task_prompt}\n\n##\nPrevious Experience:\n{memory_context}\n##"
+
             # Execute task with the agent
-            self._color_log(f"🚀 Executing task: {task_prompt}", Color.cyan)
+            self._color_log(f"🚀 Executing task: {task_prompt[:100]}...", Color.cyan)
 
             task = Task(
                 id=str(uuid.uuid4().hex),
-                input=task_prompt,
+                input=enhanced_task_prompt,
                 agent=agent,
                 conf=TaskConfig(max_steps=max_steps),
             )
@@ -304,12 +325,32 @@ class SearchAgentCollection(ActionCollection):
 
             self._color_log(f"🔄 Using existing search agent: {metadata.name} ({agent_id})", Color.cyan)
 
+            # Retrieve relevant memories from past tasks
+            memory = get_agent_memory()
+            relevant_memories = memory.retrieve_relevant_memories(
+                agent_type="search_agent",
+                task_description=task_prompt,
+                max_results=3
+            )
+            
+            if relevant_memories:
+                self._color_log(
+                    f"🧠 Retrieved {len(relevant_memories)} relevant past experiences",
+                    Color.blue
+                )
+            
+            # Enhance task prompt with past experiences
+            enhanced_task_prompt = task_prompt
+            if relevant_memories:
+                memory_context = memory.format_memories_for_prompt(relevant_memories)
+                enhanced_task_prompt = f"{task_prompt}\n\n##\nPrevious Experience:\n{memory_context}\n##"
+
             # Execute task with the agent
-            self._color_log(f"🚀 Executing task: {task_prompt}", Color.cyan)
+            self._color_log(f"🚀 Executing task: {task_prompt[:100]}...", Color.cyan)
 
             task = Task(
                 id=str(uuid.uuid4().hex),
-                input=task_prompt,
+                input=enhanced_task_prompt,
                 agent=agent,
                 conf=TaskConfig(max_steps=max_steps),
             )

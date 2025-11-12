@@ -30,7 +30,13 @@ Key Points: The orchestrator agent works recursively, planning and executing onl
 4. **Re-evaluate**: Using the output, decide what the *next immediate sub-task* should be.
    - Continue this recursive process until the final answer can be produced.
    - If the sub-task fails, analyze the cause, refine the instructions, and reuse the same agent.
-5. **Final Answer**: Wrap the final answer in `<answer>FORMATTED ANSWER</answer>` tags.
+5. **Save Memory (Before Returning)**: Before completing the task, call `mcp_save_task_memory` to save what you learned:
+   - agent_type: "orchestrator_agent"
+   - task_description: The original task given to you
+   - success: True if you completed the task successfully, False if you failed
+   - summary: For success - explain orchestration strategy, which agents were used, what worked well. For failure - explain what went wrong, which agent failed, how to avoid this issue
+   - agent_id: Your agent ID (if available)
+6. **Final Answer**: Wrap the final answer in `<answer>FORMATTED ANSWER</answer>` tags.
 
 ## Guardrails:
 - **Agent Reuse**: Track agent ids. Reuse with refined instructions instead of creating duplicates.
