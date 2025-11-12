@@ -549,6 +549,74 @@ class DocumentExtractionCollection(ActionCollection):
                 metadata={"error_type": "metadata_error"}
             )
 
+    def mcp_summarize_and_reset_memory(
+        self,
+        summary: str = Field(description="A comprehensive summary of all findings from the pages processed so far"),
+        reason: str = Field(description="Reason for needing to continue processing more pages"),
+        processed_page_range: str | None = Field(default=None, description="Page range of all processed pages so far (e.g., '0-2')")
+    ) -> ActionResponse:
+        """Summarize current findings and reset conversation memory.
+
+        This tool should be called when:
+        - Current pages don't contain enough information to answer the question
+        - Need to continue processing more pages to find the answer
+        - Want to avoid context overflow by summarizing progress so far
+
+        After calling this tool:
+        - All previous conversation history (except system prompt and initial task) will be cleared
+        - The summary will be added as context for future processing
+        - Agent can continue processing remaining pages with fresh context
+
+        Args:
+            summary: A comprehensive summary of findings from pages processed so far
+            reason: Explanation of why more pages need to be processed
+            processed_page_range: Page range of all processed pages so far (e.g., '0-2')
+        Returns:
+            ActionResponse confirming memory reset with summary
+        """
+        try:
+            if isinstance(summary, FieldInfo):
+                summary = summary.default
+            if isinstance(reason, FieldInfo):
+                reason = reason.default
+            if isinstance(processed_page_range, FieldInfo):
+                processed_page_range = processed_page_range.default
+
+            self._color_log(f"📝 Summarizing and resetting memory", Color.cyan)
+            self._color_log(f"Summary: {summary[:200]}...", Color.blue, "debug")
+            self._color_log(f"Reason: {reason}", Color.blue, "debug")
+            self._color_log(f"Processed Page Range: {processed_page_range}", Color.blue, "debug")
+
+            # Format the summary message with explicit processed_page_range
+            formatted_summary = f"""## Progress Summary
+**Pages Processed So Far:** {processed_page_range if processed_page_range else "As documented above"}
+**Findings:** {summary}
+**Reason to Continue:** {reason}
+
+Memory has been reset. You can now continue processing the remaining pages with fresh context.
+The summary above captures all important findings from previously processed pages.
+###"""
+
+            return ActionResponse(
+                success=True,
+                message=formatted_summary,
+                metadata={
+                    "memory_reset": True,
+                    # "summary": summary,
+                    # "reason": reason,
+                    "processed_page_range": processed_page_range,
+                    "action": "summarize_and_reset"
+                }
+            )
+
+        except Exception as e:
+            self.logger.error(f"Failed to summarize and reset memory: {str(e)}: {traceback.format_exc()}")
+            return ActionResponse(
+                success=False,
+                message=f"Failed to summarize and reset memory: {str(e)}",
+                metadata={"error_type": "summarization_error"}
+            )
+
     def mcp_list_supported_formats(self) -> ActionResponse:
         """list all supported document formats for extraction.
 

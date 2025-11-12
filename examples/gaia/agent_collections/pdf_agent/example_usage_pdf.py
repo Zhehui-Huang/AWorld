@@ -23,6 +23,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from examples.gaia.agent_collections.pdf_agent.pdf_agent import PDFAgent
+
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
 
@@ -53,7 +55,7 @@ def example_1_basic_pdf_processing():
         llm_temperature=0.0,
     )
 
-    main_agent = Agent(
+    main_agent = PDFAgent(
         conf=main_agent_config,
         name="main_agent",
         system_prompt=system_prompt,
@@ -62,18 +64,18 @@ def example_1_basic_pdf_processing():
     )
 
     # Get absolute path to the sample PDF
-    pdf_path = str(Path(__file__).parent / "2207.01510.pdf")
+    pdf_path = str(Path(__file__).parent / "1608.03637.pdf")
     
     # Task that requires PDF processing
     task_prompt = f"""
-    There is a section about pros and cons in {pdf_path}. Please extract the content of that section.
+    Extract every word or phrase used to describe a type of society within this article. Only list the terms or phrases that are explicitly used to refer to a kind of society. Do not include generic terms. PDF: {pdf_path}.
     """
 
     task = Task(
         id="example_1",
         input=task_prompt,
         agent=main_agent,
-        conf=TaskConfig(max_steps=12),
+        conf=TaskConfig(max_steps=20),
     )
 
     print("\n🚀 Executing task with main agent...")
