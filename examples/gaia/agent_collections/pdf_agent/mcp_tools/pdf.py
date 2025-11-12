@@ -68,6 +68,9 @@ class DocumentExtractionCollection(ActionCollection):
 
         self.supported_extensions = {".pdf"}
 
+        # extract images path info
+        self._extract_images_path_info = {}
+
         self._color_log("PDF Extraction Service initialized", Color.green, "debug")
         self._color_log(f"Media output directory: {self._media_output_dir}", Color.blue, "debug")
 
@@ -412,10 +415,22 @@ class DocumentExtractionCollection(ActionCollection):
                 response_metadata = document_metadata.model_dump()
             else:
                 response_metadata = {}
+                # Handle extracted images and media for non-metadata mode
                 if extract_images:
-                    response_metadata["extracted_images"] = [media["path"] for media in saved_media if media["type"] == "image"]
-                if saved_media:
-                    response_metadata["extracted_media"] = saved_media
+                    # If images were requested to be extracted this call
+                    extracted_images = [media["path"] for media in saved_media if media.get("type") == "image"]
+                    response_metadata["extracted_images"] = extracted_images
+                    # Save mapping for future reference, in case images are needed on subsequent runs with extract_images=False
+                    if extracted_images:
+                        self._extract_images_path_info = {img_path: img_path for img_path in extracted_images}
+                else:
+                    # extract_images=False: Provide last known images if available,
+                    # only if saved_media contains such images (which may not happen every call).
+                    if self._extract_images_path_info:
+                        # Use paths from self._extract_images_path_info
+                        response_metadata["extracted_images"] = list(self._extract_images_path_info.values())
+                # if saved_media:
+                #     response_metadata["extracted_media"] = saved_media
 
             self._color_log(
                 f"Successfully extracted content from {file_path.name} "
