@@ -157,8 +157,19 @@ def example_1_hierarchical_paper_analysis():
     main_agent = create_main_orchestrator_v2(mcp_config)
 
     # Define complex task that benefits from hierarchical orchestration
-    task_prompt = """A paper about AI regulation that was originally submitted to arXiv.org in June 2022 shows a figure with three axes, where each axis has a label word at both ends. Which of these words is used to describe a type of society in a Physics and Society article submitted to arXiv.org on August 11, 2016?
-"""
+#     task_prompt = """A paper about AI regulation that was originally submitted to arXiv.org in June 2022 shows a figure with three axes, where each axis has a label word at both ends. Which of these words is used to describe a type of society in a Physics and Society article submitted to arXiv.org on August 11, 2016?
+# """
+
+    image_path = str(Path(__file__).parent / "image_0.png")
+    image_path_1 = str(Path(__file__).parent / "image_1.png")
+    # image_path_2 = str(Path(__file__).parent / "image_2.png")
+
+    # Task that requires image processing
+    task_prompt = f"""
+    Please analyze following two images one by one: {image_path}, {image_path_1}.
+    You need to create an image_agent first, and then keep using this image agent. 
+    Please output their description.
+    """
 
     print("\n📋 Task:")
     print(task_prompt)
@@ -199,184 +210,6 @@ def example_1_hierarchical_paper_analysis():
             print(f"Status: {task_response}")
 
     print("\n" + "=" * 100)
-
-
-def example_2_parallel_orchestrators():
-    """
-    Example 2: Parallel Sub-Orchestrators
-
-    This demonstrates parallel execution of multiple independent sub-orchestrators.
-
-    Task: "Find and summarize two papers: one about transformers from 2020 and
-    one about GPT from 2021. Compare their approaches."
-
-    Workflow:
-    1. Main orchestrator identifies two independent sub-tasks
-    2. Creates TWO sub-orchestrators in parallel (one step)
-    3. Sub-orchestrator 1: Handles 2020 transformer paper (search + pdf)
-    4. Sub-orchestrator 2: Handles 2021 GPT paper (search + pdf)
-    5. Main orchestrator compares and synthesizes results
-    """
-    print("\n" + "=" * 100)
-    print("Example 2: Parallel Sub-Orchestrators (V2)")
-    print("=" * 100)
-
-    # Load environment variables
-    load_dotenv()
-
-    # Verify required environment variables
-    required_vars = ["LLM_API_KEY", "GOOGLE_API_KEY", "GOOGLE_CSE_ID"]
-    missing_vars = [var for var in required_vars if not os.getenv(var)]
-    if missing_vars:
-        print(f"❌ Missing required environment variables: {missing_vars}")
-        return
-
-    # Set workspace
-    workspace = os.getenv("AWORLD_WORKSPACE", str(Path.home()))
-    print(f"📁 Workspace: {workspace}")
-
-    # Load MCP V2 configuration
-    mcp_config = load_mcp_config_v2()
-    if not mcp_config:
-        print("❌ Failed to load MCP V2 configuration")
-        return
-
-    # Create main orchestrator V2
-    print("\n🎭 Creating main orchestrator V2...")
-    main_agent = create_main_orchestrator_v2(mcp_config)
-
-    # Define task with parallel sub-tasks
-    task_prompt = """Find and analyze TWO papers:
-1. A paper about attention mechanisms in transformers from 2020 on arXiv
-2. A paper about GPT models from 2021 on arXiv
-
-For each paper:
-- Find and download it
-- Extract and summarize the key methodology (100 words)
-
-Then compare their approaches and highlight key differences.
-
-Note: These are independent tasks that can be handled in parallel."""
-
-    print("\n📋 Task:")
-    print(task_prompt)
-    print("\n🚀 Executing parallel orchestration workflow...\n")
-    print("Expected behavior:")
-    print("  → Main orchestrator identifies two independent sub-tasks")
-    print("  → Creates two sub-orchestrators in parallel (same step)")
-    print("  → Each sub-orchestrator handles its paper independently")
-    print("  → Main orchestrator compares results\n")
-
-    # Create and run task
-    task = Task(
-        id=str(uuid.uuid4().hex),
-        input=task_prompt,
-        agent=main_agent,
-        conf=TaskConfig(max_steps=35),
-    )
-
-    # Execute task
-    result_map = Runners.sync_run_task(task=task)
-    task_response = result_map.get(task.id) if result_map else None
-
-    # Display results
-    print("\n" + "=" * 100)
-    print("📊 Results - Parallel Orchestration")
-    print("=" * 100)
-
-    if task_response and task_response.answer:
-        print("\n✅ Task completed successfully!\n")
-        print(task_response.answer)
-    else:
-        print("\n⚠️ Task completed but no answer was generated")
-        if task_response:
-            print(f"Status: {task_response}")
-
-    print("\n" + "=" * 100)
-
-
-def example_3_direct_vs_hierarchical():
-    """
-    Example 3: Comparison - Direct Agent Management vs Hierarchical
-
-    This demonstrates when to use direct agent management vs sub-orchestrators.
-
-    Simple Task: "Find a paper about BERT and summarize it"
-    - Only needs: search → pdf (2 agents, simple sequence)
-    - V2 orchestrator should use agents DIRECTLY (no sub-orchestrator needed)
-
-    This shows that V2 is smart about when to create sub-orchestrators.
-    """
-    print("\n" + "=" * 100)
-    print("Example 3: Direct Agent Management (V2 - No Sub-Orchestrator Needed)")
-    print("=" * 100)
-
-    # Load environment variables
-    load_dotenv()
-
-    # Verify required environment variables
-    required_vars = ["LLM_API_KEY", "GOOGLE_API_KEY", "GOOGLE_CSE_ID"]
-    missing_vars = [var for var in required_vars if not os.getenv(var)]
-    if missing_vars:
-        print(f"❌ Missing required environment variables: {missing_vars}")
-        return
-
-    # Set workspace
-    workspace = os.getenv("AWORLD_WORKSPACE", str(Path.home()))
-    print(f"📁 Workspace: {workspace}")
-
-    # Load MCP V2 configuration
-    mcp_config = load_mcp_config_v2()
-    if not mcp_config:
-        print("❌ Failed to load MCP V2 configuration")
-        return
-
-    # Create main orchestrator V2
-    print("\n🎭 Creating main orchestrator V2...")
-    main_agent = create_main_orchestrator_v2(mcp_config)
-
-    # Define simple task that doesn't need sub-orchestrator
-    task_prompt = """Find a paper about BERT (Bidirectional Encoder Representations from Transformers) 
-from 2018 on arXiv, download it, and provide a 100-word summary of the main contribution.
-
-This is a straightforward sequential task: search for paper, then summarize it."""
-
-    print("\n📋 Task:")
-    print(task_prompt)
-    print("\n🚀 Executing workflow...\n")
-    print("Expected behavior:")
-    print("  → Main orchestrator recognizes this is a simple sequential task")
-    print("  → Uses search_agent directly (find + download)")
-    print("  → Uses pdf_agent directly (summarize)")
-    print("  → No sub-orchestrator created (not complex enough)\n")
-
-    # Create and run task
-    task = Task(
-        id=str(uuid.uuid4().hex),
-        input=task_prompt,
-        agent=main_agent,
-        conf=TaskConfig(max_steps=25),
-    )
-
-    # Execute task
-    result_map = Runners.sync_run_task(task=task)
-    task_response = result_map.get(task.id) if result_map else None
-
-    # Display results
-    print("\n" + "=" * 100)
-    print("📊 Results - Direct Agent Management")
-    print("=" * 100)
-
-    if task_response and task_response.answer:
-        print("\n✅ Task completed successfully!\n")
-        print(task_response.answer)
-    else:
-        print("\n⚠️ Task completed but no answer was generated")
-        if task_response:
-            print(f"Status: {task_response}")
-
-    print("\n" + "=" * 100)
-
 
 def main():
     """Main entry point - run V2 orchestration examples."""

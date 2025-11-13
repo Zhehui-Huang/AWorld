@@ -212,7 +212,7 @@ class SearchAgentCollection(ActionCollection):
             # Retrieve relevant memories from past tasks
             memory = get_agent_memory()
             relevant_memories = memory.retrieve_relevant_memories(
-                agent_type="search_agent",
+                agent_id=metadata.agent_id,
                 task_description=task_prompt,
                 max_results=3
             )
@@ -223,11 +223,14 @@ class SearchAgentCollection(ActionCollection):
                     Color.blue
                 )
             
+            # Add agent ID to task prompt
+            task_prompt_with_id = f"[Agent ID: {metadata.agent_id}]\n\n{task_prompt}"
+            
             # Enhance task prompt with past experiences
-            enhanced_task_prompt = task_prompt
+            enhanced_task_prompt = task_prompt_with_id
             if relevant_memories:
                 memory_context = memory.format_memories_for_prompt(relevant_memories)
-                enhanced_task_prompt = f"{task_prompt}\n\n##\nPrevious Experience:\n{memory_context}\n##"
+                enhanced_task_prompt = f"{task_prompt_with_id}\n\n##\nPrevious Experience:\n{memory_context}\n##"
 
             # Execute task with the agent
             self._color_log(f"🚀 Executing task: {task_prompt[:100]}...", Color.cyan)
@@ -328,7 +331,7 @@ class SearchAgentCollection(ActionCollection):
             # Retrieve relevant memories from past tasks
             memory = get_agent_memory()
             relevant_memories = memory.retrieve_relevant_memories(
-                agent_type="search_agent",
+                agent_id=metadata.agent_id,
                 task_description=task_prompt,
                 max_results=3
             )
@@ -339,11 +342,14 @@ class SearchAgentCollection(ActionCollection):
                     Color.blue
                 )
             
+            # Add agent ID to task prompt
+            task_prompt_with_id = f"[Agent ID: {metadata.agent_id}]\n\n{task_prompt}"
+            
             # Enhance task prompt with past experiences
-            enhanced_task_prompt = task_prompt
+            enhanced_task_prompt = task_prompt_with_id
             if relevant_memories:
                 memory_context = memory.format_memories_for_prompt(relevant_memories)
-                enhanced_task_prompt = f"{task_prompt}\n\n##\nPrevious Experience:\n{memory_context}\n##"
+                enhanced_task_prompt = f"{task_prompt_with_id}\n\n##\nPrevious Experience:\n{memory_context}\n##"
 
             # Execute task with the agent
             self._color_log(f"🚀 Executing task: {task_prompt[:100]}...", Color.cyan)

@@ -61,11 +61,13 @@ def example_1_create_image_agent():
 
     # Get absolute path to image_0.png
     image_path = str(Path(__file__).parent / "image_0.png")
+    image_path_1 = str(Path(__file__).parent / "image_1.png")
+    # image_path_2 = str(Path(__file__).parent / "image_2.png")
     
     # Task that requires image processing
     task_prompt = f"""
-    I need to analyze the image at path: {image_path}
-    Please extract all axis labels. The image contains three axes, and each axis has label words at both ends. I need you to identify and list all six labels (two labels per axis).
+    Please analyze following two images one by one: {image_path}, {image_path_1}
+    Please describe each image, and return their description separately.
     """
 
     task = Task(
