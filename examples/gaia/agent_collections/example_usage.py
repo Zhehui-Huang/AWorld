@@ -157,19 +157,19 @@ def example_1_hierarchical_paper_analysis():
     main_agent = create_main_orchestrator_v2(mcp_config)
 
     # Define complex task that benefits from hierarchical orchestration
-#     task_prompt = """A paper about AI regulation that was originally submitted to arXiv.org in June 2022 shows a figure with three axes, where each axis has a label word at both ends. Which of these words is used to describe a type of society in a Physics and Society article submitted to arXiv.org on August 11, 2016?
-# """
+    task_prompt = """A paper about AI regulation that was originally submitted to arXiv.org in June 2022 shows a figure with three axes, where each axis has a label word at both ends. Which of these words is used to describe a type of society in a Physics and Society article submitted to arXiv.org on August 11, 2016?
+"""
 
     image_path = str(Path(__file__).parent / "image_0.png")
     image_path_1 = str(Path(__file__).parent / "image_1.png")
     # image_path_2 = str(Path(__file__).parent / "image_2.png")
 
     # Task that requires image processing
-    task_prompt = f"""
-    Please analyze following two images one by one: {image_path}, {image_path_1}.
-    You need to create an image_agent first, and then keep using this image agent. 
-    Please output their description.
-    """
+    # task_prompt = f"""
+    # Please analyze following two images one by one: {image_path}, {image_path_1}.
+    # You need to create an image_agent first, and then keep using this image agent.
+    # Please output their description.
+    # """
 
     print("\n📋 Task:")
     print(task_prompt)

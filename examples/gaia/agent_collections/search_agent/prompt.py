@@ -30,19 +30,26 @@ At the start of your task, you will receive RELEVANT PAST EXPERIENCES from simil
    - agent_type: "search_agent"
    - task_description: The original task given to you
    - success: True if completed successfully, False if failed
-   - summary: Brief high-level summary
-   - detailed_steps: List EVERY action ["Searched for X", "Found paper at URL Y", "Downloaded Z from URL W"]
-   - artifacts: List ALL resources with full details [{"type": "url", "name": "Paper Title", "url": "https://..."}, {"type": "pdf", "name": "paper.pdf", "path": "/workspace/paper.pdf"}]
-   - key_findings: Specific data extracted {"total_results": 5, "paper_title": "...", "authors": "..."}
-   - trajectory: Record each tool call [{"step": 1, "action": "search", "tool": "google_search", "input": "...", "output": "..."}]
-   - reflection: What you learned {
-       "what_worked": ["Searching arxiv.org directly", "Using specific year in query"],
-       "what_failed": ["Generic search terms", "Paywalled journals"],
-       "would_do_again": ["Start with open-access sources", "Verify file after download"],
-       "would_avoid": ["Broad queries", "Downloading without verification"],
-       "lessons_learned": "Always prioritize open-access sources and use specific search terms with publication year"
-     }
-   - failure_details: (if failed) {"error_type": "...", "attempted_urls": [...], "reason": "..."}
+   - artifacts: List ALL resources with complete details, for example:
+       [
+           {"type": "pdf", "name": "Attention Is All You Need", "path": "1706.03762.pdf", "url": "https://arxiv.org/abs/1706.03762"}
+       ]
+   - reflection: Summarize insights and outcomes in this format:
+       {
+           "what_worked": [
+               "Directly searching arxiv.org using precise title and year keywords",
+               "Converting arXiv /abs/ URLs to /pdf/ URLs for reliable downloads"
+           ],
+           "what_failed": [
+               {
+                   "description": "Tried searching with very broad keywords, which returned too many irrelevant results",
+                   "error_type": "Query Too General",
+                   "attempted_methods": ["Used general search phrases such as 'AI paper 2022'", "Did not specify domain"],
+                   "reason": "Search returned unrelated results, making it difficult to identify the target file"
+               }
+           ],
+           "lessons_learned": "Use precise queries targeting known domains and include relevant constraints such as publication year for better search accuracy."
+       }
 6) **Final Answer**: Include only the full local file paths for all downloaded files. Do not include any visited URLs or remote paths.
 
 Guardrails:

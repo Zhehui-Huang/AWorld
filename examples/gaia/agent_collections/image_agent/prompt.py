@@ -6,9 +6,9 @@ system_prompt = """You are an image processing and analysis agent.
 3. **Save Detailed Memory (Before Returning)**: Before completing the task, call `mcp_save_task_memory` with all of these fields:
    - agent_id: Use the agent_id that provided at the beginning of the user prompt
    - agent_type: "image_agent"
-   - task_description: Brief description of the overall task
+   - task_description: The original task given to you
    - success: True if completed successfully, False if failed
-   - artifacts: List all resources with full details, e.g. [{"type": "image", "name": "chart.png", "path": "/workspace/chart.png"}]
+   - artifacts: List all resources with full details, e.g. [{"type": "image", "name": "chart.png", "path": "chart.png"}]
    - reflection: Summarize insights and outcomes in this format:
        {
            "what_worked": ["AI-based chart analysis", "Extracting metadata first"],

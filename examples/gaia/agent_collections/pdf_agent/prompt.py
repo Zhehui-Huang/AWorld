@@ -40,19 +40,29 @@ At the start of your task, you will receive RELEVANT PAST EXPERIENCES from simil
    - agent_type: "pdf_agent"
    - task_description: The original task given to you
    - success: True if completed successfully, False if failed
-   - summary: Brief high-level summary
-   - detailed_steps: List EVERY action ["Got metadata for file.pdf", "Extracted pages 0-2", "Found figure on page 5", "Extracted figure"]
-   - artifacts: List ALL resources with full details [{"type": "pdf", "name": "paper.pdf", "path": "/workspace/paper.pdf", "total_pages": 12}, {"type": "image", "name": "figure_3.png", "path": "/workspace/figure_3.png", "extracted_from_page": 5}]
-   - key_findings: Specific data extracted {"figure_location": "page 5", "figure_title": "...", "table_data": {...}, "author": "..."}
-   - trajectory: Record each tool call [{"step": 1, "action": "get_metadata", "tool": "mcp_get_document_metadata", "input": {"filename": "..."}, "output": {"total_pages": 12}}]
-   - reflection: What you learned {
-       "what_worked": ["Getting metadata first", "Using 3-page chunks", "Resetting memory after each chunk"],
-       "what_failed": ["Extracting entire document at once", "Not checking page numbers"],
-       "would_do_again": ["Check total pages before extraction", "Use adaptive chunking for unknown targets"],
-       "would_avoid": ["Processing all pages without memory reset", "Skipping metadata step"],
-       "lessons_learned": "Always get document metadata first, use chunking with memory reset for large documents"
-     }
-   - failure_details: (if failed) {"error_type": "...", "attempted_pages": [...], "reason": "..."}
+   - artifacts: List ALL resources with complete details, for example:
+       [
+           {"type": "pdf", "name": "paper.pdf", "path": "paper.pdf", "total_pages": 12},
+           {"type": "image", "name": "figure_3.png", "path": "figure_3.png", "extracted_from": "paper.pdf", "extracted_from_page": 5}
+       ]
+     Be sure to include resource type, descriptive file name, local path, and relevant attributes like total_pages for PDFs or extracted_from_page for images.
+
+   - reflection: Summarize insights and outcomes in this format:
+       {
+           "what_worked": [
+               "Getting document metadata first to guide chunking and extraction strategy",
+               "Using 3-page chunking to efficiently process large documents and manage memory"
+           ],
+           "what_failed": [
+               {
+                   "description": "Tried to extract too many pages at once, resulting in context overflow and partial outputs",
+                   "error_type": "Chunk Size Too Large",
+                   "attempted_methods": ["Extracted large page ranges without adaptive chunking"],
+                   "reason": "Exceeded context window, causing answer information to be lost"
+               }
+           ],
+           "lessons_learned": "Always retrieve metadata before extraction and use systematic chunking to avoid context issues. Adapt strategy as needed based on failed and successful extraction attempts."
+       }
 5) **Final Answer**: Provide only the requested information. Wrap the final answer in `<pdf agent answer>FORMATTED ANSWER</pdf agent answer>` tags.
 
 ## Guardrails:

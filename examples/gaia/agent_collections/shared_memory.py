@@ -5,32 +5,23 @@ This module provides a memory system for agents to save and retrieve past task e
 Each agent instance has its own isolated memory space, ensuring privacy and independence.
 
 Key features:
-- Detailed memory storage with concrete information (files, URLs, specific steps)
-- Trajectory tracking (full sequence of agent actions and tool calls)
-- Reflection and learning (what worked, what failed, what to do/avoid next time)
+- Memory storage with concrete information (files, URLs)
+- Reflection and learning (what worked, what failed, lessons learned)
 - Each agent instance has separate memory (no sharing, even between agents of same type)
 - Retrieval of relevant past experiences based on task similarity using semantic embeddings
-- Success/failure tracking with detailed summaries, steps, artifacts, and findings
+- Success/failure tracking with artifacts and reflection
 - Semantic similarity-based retrieval with recency weighting
 - Integration with AWorld's embedding providers (OpenAI, Ollama, etc.)
 
 Memory Entry Structure:
-- task_description: High-level task description
+- task_description: Task description
 - success: Whether the task succeeded or failed
-- summary: Brief summary of outcome
-- detailed_steps: List of specific actions taken (e.g., ["Searched for X", "Downloaded Y from URL Z"])
 - artifacts: List of concrete resources (files, URLs, images) with full details
   Example: [{"type": "pdf", "name": "paper.pdf", "path": "/workspace/paper.pdf", "url": "https://..."}]
-- key_findings: Specific data extracted (authors, dates, results, dimensions, etc.)
-- failure_details: If failed, specific error details (error types, failed files/URLs, reasons)
-- trajectory: Full sequence of agent interactions/actions with timestamps
-  Example: [{"step": 1, "action": "search", "tool": "google_search", "input": "...", "output": "..."}]
 - reflection: Agent's self-assessment and learning
   Example: {
       "what_worked": ["Using specific search terms", "Downloading from arxiv.org"],
       "what_failed": ["Generic queries", "Paywalled journals"],
-      "would_do_again": ["Start with arxiv.org", "Verify file integrity"],
-      "would_avoid": ["Broad search terms", "Unverified sources"],
       "lessons_learned": "Prioritize open-access sources for better success rate"
   }
 """
@@ -250,46 +241,28 @@ class AgentMemory:
         agent_type: str,
         task_description: str,
         success: bool,
-        summary: str,
-        detailed_steps: Optional[List[str]] = None,
         artifacts: Optional[List[Dict[str, Any]]] = None,
-        key_findings: Optional[Dict[str, Any]] = None,
-        failure_details: Optional[Dict[str, Any]] = None,
-        trajectory: Optional[List[Dict[str, Any]]] = None,
-        reflection: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        reflection: Optional[Dict[str, Any]] = None
     ) -> None:
-        """Save a task memory entry for a specific agent instance with detailed information.
+        """Save a task memory entry for a specific agent instance.
         
         Args:
             agent_id: Unique ID of the agent instance
             agent_type: Type of agent (e.g., 'search_agent', 'pdf_agent')
             task_description: Description of the task that was attempted
             success: Whether the task succeeded or failed
-            summary: High-level summary of the outcome
-            detailed_steps: List of specific actions taken (e.g., ["Searched for X", "Downloaded Y"])
             artifacts: List of concrete resources used/created (files, URLs, etc.)
-                      Example: [{"type": "pdf", "name": "paper.pdf", "path": "/path/to/paper.pdf"},
-                               {"type": "url", "name": "Research Paper", "url": "https://..."}]
-            key_findings: Dictionary of specific data extracted/discovered
-                         Example: {"author": "John Doe", "year": 2023, "main_result": "..."}
-            failure_details: If failed, specific details about what went wrong
-                           Example: {"error_type": "file_not_found", "attempted_files": [...], "reason": "..."}
-            trajectory: Full sequence of agent interactions/actions with timestamps
-                       Example: [{"step": 1, "action": "search", "tool": "google_search", "input": "...", "output": "...", "timestamp": "..."}]
+                      Example: [{"type": "pdf", "name": "Research Paper", "path": "paper.pdf", "url": "https://..."}]
             reflection: Agent's learning and self-assessment
                        Example: {
                            "what_worked": ["Using specific search terms", "Downloading PDFs directly"],
                            "what_failed": ["Generic search queries", "Accessing paywalled content"],
-                           "would_do_again": ["Search arxiv.org first for papers", "Verify file integrity after download"],
-                           "would_avoid": ["Trying institutional access without credentials", "Downloading from suspicious domains"],
                            "lessons_learned": "Always check if paper is open-access before attempting download"
                        }
-            metadata: Additional metadata (execution_time, etc.)
         """
         memories = self._load_memories(agent_id)
         
-        # Create memory entry with detailed information
+        # Create memory entry
         memory_entry = {
             "id": hashlib.md5(
                 f"{agent_id}_{task_description}_{datetime.now().isoformat()}".encode()
@@ -298,15 +271,9 @@ class AgentMemory:
             "agent_type": agent_type,
             "task_description": task_description,
             "success": success,
-            "summary": summary,
-            "detailed_steps": detailed_steps or [],
             "artifacts": artifacts or [],
-            "key_findings": key_findings or {},
-            "failure_details": failure_details or {},
-            "trajectory": trajectory or [],
             "reflection": reflection or {},
-            "timestamp": datetime.now().isoformat(),
-            "metadata": metadata or {}
+            "timestamp": datetime.now().isoformat()
         }
         
         # Add to memories
@@ -321,16 +288,14 @@ class AgentMemory:
         # Save to disk
         self._save_memories(agent_id, memories)
         
-        # Log the save with details
+        # Log the save
         status = "✓ SUCCESS" if success else "✗ FAILURE"
         artifacts_count = len(artifacts) if artifacts else 0
-        steps_count = len(detailed_steps) if detailed_steps else 0
-        trajectory_count = len(trajectory) if trajectory else 0
         has_reflection = bool(reflection)
         logger.info(
             f"💾 [{status}] Saved memory for agent {agent_id} ({agent_type}): "
-            f"{task_description[:60]}... ({steps_count} steps, {artifacts_count} artifacts, "
-            f"{trajectory_count} trajectory items, reflection: {has_reflection})"
+            f"{task_description[:60]}... ({artifacts_count} artifacts, "
+            f"reflection: {has_reflection})"
         )
     
     def retrieve_relevant_memories(
@@ -407,7 +372,7 @@ class AgentMemory:
         return [item["memory"] for item in scored_memories[:max_results]]
     
     def format_memories_for_prompt(self, memories: List[Dict[str, Any]]) -> str:
-        """Format retrieved memories for inclusion in task prompt with detailed information.
+        """Format retrieved memories for inclusion in task prompt.
         
         Args:
             memories: List of memory entries
@@ -424,14 +389,6 @@ class AgentMemory:
         for idx, memory in enumerate(memories, 1):
             status = "✓ SUCCESS" if memory["success"] else "✗ FAILURE"
             formatted += f"{idx}. [{status}] Task: {memory['task_description']}\n"
-            formatted += f"   Summary: {memory['summary']}\n"
-            
-            # Add detailed steps if available
-            detailed_steps = memory.get('detailed_steps', [])
-            if detailed_steps:
-                formatted += f"   Detailed Steps:\n"
-                for step in detailed_steps:
-                    formatted += f"      - {step}\n"
             
             # Add artifacts if available
             artifacts = memory.get('artifacts', [])
@@ -449,34 +406,6 @@ class AgentMemory:
                 if len(artifacts) > 10:
                     formatted += f"      ... and {len(artifacts) - 10} more artifacts\n"
             
-            # Add key findings if available
-            key_findings = memory.get('key_findings', {})
-            if key_findings:
-                formatted += f"   Key Findings:\n"
-                for key, value in list(key_findings.items())[:5]:  # Limit to first 5
-                    formatted += f"      - {key}: {value}\n"
-            
-            # Add trajectory summary if available
-            trajectory = memory.get('trajectory', [])
-            if trajectory:
-                formatted += f"   Trajectory ({len(trajectory)} interactions):\n"
-                # Show first few and last few trajectory steps
-                if len(trajectory) <= 5:
-                    for traj_item in trajectory:
-                        action = traj_item.get('action', 'unknown')
-                        tool = traj_item.get('tool', 'unknown')
-                        formatted += f"      - Step {traj_item.get('step', '?')}: {action} using {tool}\n"
-                else:
-                    for traj_item in trajectory[:3]:
-                        action = traj_item.get('action', 'unknown')
-                        tool = traj_item.get('tool', 'unknown')
-                        formatted += f"      - Step {traj_item.get('step', '?')}: {action} using {tool}\n"
-                    formatted += f"      ... ({len(trajectory) - 5} more steps)\n"
-                    for traj_item in trajectory[-2:]:
-                        action = traj_item.get('action', 'unknown')
-                        tool = traj_item.get('tool', 'unknown')
-                        formatted += f"      - Step {traj_item.get('step', '?')}: {action} using {tool}\n"
-            
             # Add reflection - This is crucial for learning
             reflection = memory.get('reflection', {})
             if reflection:
@@ -485,46 +414,25 @@ class AgentMemory:
                 what_worked = reflection.get('what_worked', [])
                 if what_worked:
                     formatted += f"      ✓ What Worked:\n"
-                    for item in what_worked[:3]:  # Limit to first 3
+                    for item in what_worked[:5]:
                         formatted += f"         - {item}\n"
                 
                 what_failed = reflection.get('what_failed', [])
                 if what_failed:
                     formatted += f"      ✗ What Failed:\n"
-                    for item in what_failed[:3]:  # Limit to first 3
-                        formatted += f"         - {item}\n"
-                
-                would_do_again = reflection.get('would_do_again', [])
-                if would_do_again:
-                    formatted += f"      ✓ Would Do Again:\n"
-                    for item in would_do_again[:3]:  # Limit to first 3
-                        formatted += f"         - {item}\n"
-                
-                would_avoid = reflection.get('would_avoid', [])
-                if would_avoid:
-                    formatted += f"      ✗ Would Avoid:\n"
-                    for item in would_avoid[:3]:  # Limit to first 3
+                    for item in what_failed[:5]:
                         formatted += f"         - {item}\n"
                 
                 lessons_learned = reflection.get('lessons_learned', '')
                 if lessons_learned:
                     formatted += f"      💡 Lesson: {lessons_learned}\n"
             
-            # Add failure details if failed
-            if not memory["success"]:
-                failure_details = memory.get('failure_details', {})
-                if failure_details:
-                    formatted += f"   Failure Details:\n"
-                    for key, value in failure_details.items():
-                        formatted += f"      - {key}: {value}\n"
-            
             formatted += f"   Date: {memory['timestamp'][:10]}\n\n"
         
-        formatted += "Use these past experiences, including:\n"
-        formatted += "- Specific artifacts and detailed steps\n"
-        formatted += "- Agent reflections on what worked and what didn't\n"
-        formatted += "- Approaches to repeat and pitfalls to avoid\n"
-        formatted += "to inform your approach to the current task.\n"
+        formatted += "Use these past experiences to inform your approach:\n"
+        formatted += "- Learn from what worked and what failed\n"
+        formatted += "- Apply the lessons learned\n"
+        formatted += "- Utilize successful artifacts and approaches\n"
         formatted += "=== END OF PAST EXPERIENCES ===\n"
         
         return formatted
