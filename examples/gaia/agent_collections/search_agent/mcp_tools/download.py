@@ -14,7 +14,6 @@ Key features:
 
 Main functions:
 - mcp_download_file: Download files from URLs with comprehensive options
-- mcp_get_download_capabilities: Get download service capabilities
 """
 
 import json
@@ -395,71 +394,6 @@ class DownloadCollection(ActionCollection):
                     error_type="internal_error",
                 ).model_dump(),
             )
-
-    def mcp_get_download_capabilities(self) -> ActionResponse:
-        """Get information about download service capabilities and configuration.
-
-        Returns:
-            ActionResponse with download service capabilities and current configuration
-        """
-        capabilities = {
-            "requests_available": requests is not None,
-            "supported_schemes": list(self.supported_schemes),
-            "supported_features": [
-                "HTTP/HTTPS URL downloads",
-                "Configurable timeout controls",
-                "Custom headers support",
-                "Path validation and directory creation",
-                "File size limits and safety checks",
-                "Multiple output formats (markdown, json, text)",
-                "LLM-optimized result formatting",
-                "Comprehensive error handling",
-            ],
-            "supported_formats": ["markdown", "json", "text"],
-            "configuration": {
-                "default_timeout": self.default_timeout,
-                "max_file_size_bytes": self.max_file_size,
-                "workspace": str(self.workspace),
-            },
-            "safety_features": [
-                "URL validation",
-                "File size limits",
-                "Timeout controls",
-                "Path validation",
-                "Overwrite protection",
-                "Error handling and logging",
-            ],
-        }
-
-        max_size_mb = self.max_file_size / (1024 * 1024)
-        formatted_info = f"""# Download Service Capabilities
-
-        ## Status
-        - **Workspace:** `{self.workspace}`
-
-        ## Supported Features
-        {chr(10).join(f"- {feature}" for feature in capabilities["supported_features"])}
-
-        ## Supported URL Schemes
-        {chr(10).join(f"- {scheme}://" for scheme in capabilities["supported_schemes"])}
-
-        ## Supported Output Formats
-        {chr(10).join(f"- {fmt}" for fmt in capabilities["supported_formats"])}
-
-        ## Configuration
-        - **Default Timeout:** {capabilities["configuration"]["default_timeout"]} seconds
-        - **Max File Size:** {self.max_file_size:,} bytes ({max_size_mb:.1f} MB)
-
-        ## Safety Features
-        {chr(10).join(f"- {feature}" for feature in capabilities["safety_features"])}
-        """
-
-        return ActionResponse(
-            success=True,
-            message=formatted_info,
-            metadata=capabilities,
-        )
-
 
 # Default arguments for testing
 if __name__ == "__main__":

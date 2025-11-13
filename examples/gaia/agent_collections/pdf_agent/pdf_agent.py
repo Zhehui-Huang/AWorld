@@ -16,7 +16,6 @@ Key features:
 Main functions:
 - mcp_create_pdf_agent: Create PDF agent
 - mcp_use_existing_pdf_agent: Use existing PDF agent
-- mcp_get_pdf_agent_capabilities: Returns information about PDF agent service capabilities
 
 Image tools available:
 - mcp_extract_text_ocr: Extract text from images using OCR
@@ -586,78 +585,6 @@ class PDFAgentCollection(ActionCollection):
                 message=error_msg,
                 metadata={"error_type": "agent_execution_failed", "error_details": str(e)},
             )
-
-    def mcp_get_pdf_agent_capabilities(self) -> ActionResponse:
-        """Get information about PDF service agent capabilities and configuration.
-
-        Returns:
-            ActionResponse with PDF service capabilities and current configuration
-        """
-        # Get list of registered agents
-        registered_agents = [
-            {"agent_id": m.agent_id, "name": m.name, "description": m.description}
-            for m in self.agent_registry.list_agents()
-        ]
-
-        capabilities = {
-            "service_name": "PDF Agent MCP Server",
-            "version": "1.1.0",
-            "description": "Dynamic multi-layer agent architecture for PDF and image processing and analysis tasks",
-            "features": [
-                "Create independent PDF agents with dedicated LLM and memory",
-                "Reuse existing agents across multiple tasks",
-                "Autonomous task execution with think-act-observe loop",
-                "PDF content extraction using marker package",
-                "Image and media extraction from PDFs",
-                "OCR support for scanned documents and images",
-                "AI-powered image analysis and reasoning using vision models",
-                "Image metadata extraction (dimensions, format, file size)",
-                "LLM-optimized result formatting",
-                "Agent registry for managing multiple agent instances",
-            ],
-            "mcp_tools": list(self.mcp_config.get("mcpServers", {}).keys()),
-            "supported_operations": [
-                "mcp_create_pdf_agent: Create and execute with new agent",
-                "mcp_use_existing_pdf_agent: Execute with existing agent",
-                "mcp_get_pdf_agent_capabilities: Get service information",
-            ],
-            "registered_agents": registered_agents,
-            "agent_count": len(registered_agents),
-            "configuration": {
-                "workspace": str(self.workspace),
-                "default_max_steps": 12,
-                "default_temperature": 0.0,
-            },
-        }
-
-        formatted_info = f"""# PDF Agent MCP Server Capabilities
-
-## Overview
-**Service:** {capabilities["service_name"]}
-**Version:** {capabilities["version"]}
-**Description:** {capabilities["description"]}
-
-## Features
-{chr(10).join(f"- {feature}" for feature in capabilities["features"])}
-
-## Available MCP Tools
-{chr(10).join(f"- {tool}" for tool in capabilities["mcp_tools"])}
-
-## Supported Operations
-{chr(10).join(f"- {op}" for op in capabilities["supported_operations"])}
-
-## Registered Agents
-**Total Agents:** {capabilities["agent_count"]}
-{chr(10).join(f"- **{agent['agent_id']}** ({agent['name']}): {agent['description']}" for agent in registered_agents) if registered_agents else "No agents registered yet."}
-
-## Configuration
-- **Workspace:** `{capabilities["configuration"]["workspace"]}`
-- **Default Max Steps:** {capabilities["configuration"]["default_max_steps"]}
-- **Default Temperature:** {capabilities["configuration"]["default_temperature"]}
-"""
-
-        return ActionResponse(success=True, message=formatted_info, metadata=capabilities)
-
 
 # Example usage and entry point
 if __name__ == "__main__":

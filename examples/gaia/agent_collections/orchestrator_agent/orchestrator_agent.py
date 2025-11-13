@@ -15,7 +15,6 @@ Key features:
 Main functions:
 - mcp_create_orchestrator_agent: Create new orchestrator agent
 - mcp_use_existing_orchestrator_agent: Reuse existing orchestrator
-- mcp_get_orchestrator_capabilities: Get orchestrator service information
 """
 
 import json
@@ -478,84 +477,6 @@ class OrchestratorAgentCollection(ActionCollection):
                 message=error_msg,
                 metadata={"error_type": "orchestrator_execution_failed", "error_details": str(e)},
             )
-
-    def mcp_get_orchestrator_capabilities(self) -> ActionResponse:
-        """Get information about orchestrator service capabilities and configuration.
-
-        Returns:
-            ActionResponse with orchestrator service capabilities and current configuration
-        """
-        # Get list of registered orchestrators
-        registered_orchestrators = [
-            {
-                "agent_id": m.agent_id,
-                "name": m.name,
-                "description": m.description,
-                "orchestration_level": m.orchestration_level,
-                "available_agents": m.available_agents,
-            }
-            for m in self.agent_registry.list_agents()
-        ]
-
-        capabilities = {
-            "service_name": "Orchestrator Agent MCP Server",
-            "version": "2.0.0",
-            "description": "Hierarchical multi-agent orchestration with recursive orchestrator support",
-            "features": [
-                "Create orchestrator agents with configurable sub-agent access",
-                "Recursive orchestration (orchestrators creating orchestrators)",
-                "Support parallel and sequential execution patterns",
-                "Dynamic agent selection and coordination",
-                "Hierarchical task decomposition",
-                "Context and memory preservation across nested orchestrations",
-                "Agent registry for managing orchestrator instances",
-                "Unlimited nesting depth for complex workflows",
-            ],
-            "available_agent_types": list(self.base_mcp_config.get("mcpServers", {}).keys()),
-            "supported_operations": [
-                "mcp_create_orchestrator_agent: Create and execute with new orchestrator",
-                "mcp_use_existing_orchestrator_agent: Execute with existing orchestrator",
-                "mcp_get_orchestrator_capabilities: Get service information",
-            ],
-            "registered_orchestrators": registered_orchestrators,
-            "orchestrator_count": len(registered_orchestrators),
-            "current_level": self.orchestration_level,
-            "configuration": {
-                "workspace": str(self.workspace),
-                "default_max_steps": 25,
-                "default_temperature": 0.0,
-            },
-        }
-
-        formatted_info = f"""# Orchestrator Agent MCP Server Capabilities
-
-## Overview
-**Service:** {capabilities["service_name"]}
-**Version:** {capabilities["version"]}
-**Description:** {capabilities["description"]}
-**Current Orchestration Level:** {capabilities["current_level"]}
-
-## Features
-{chr(10).join(f"- {feature}" for feature in capabilities["features"])}
-
-## Available Agent Types
-{chr(10).join(f"- {agent}" for agent in capabilities["available_agent_types"])}
-
-## Supported Operations
-{chr(10).join(f"- {op}" for op in capabilities["supported_operations"])}
-
-## Registered Orchestrators
-**Total Orchestrators:** {capabilities["orchestrator_count"]}
-{chr(10).join(f"- **{orch['agent_id']}** ({orch['name']}) [Level {orch['orchestration_level']}]: {orch['description']}" for orch in registered_orchestrators) if registered_orchestrators else "No orchestrators registered yet."}
-
-## Configuration
-- **Workspace:** `{capabilities["configuration"]["workspace"]}`
-- **Default Max Steps:** {capabilities["configuration"]["default_max_steps"]}
-- **Default Temperature:** {capabilities["configuration"]["default_temperature"]}
-"""
-
-        return ActionResponse(success=True, message=formatted_info, metadata=capabilities)
-
 
 # Example usage and entry point
 if __name__ == "__main__":

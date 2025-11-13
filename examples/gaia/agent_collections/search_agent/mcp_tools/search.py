@@ -11,7 +11,6 @@ Key features:
 
 Main functions:
 - mcp_search_google: Searches the web using Google Custom Search API
-- mcp_get_search_capabilities: Returns information about search service capabilities
 """
 
 import json
@@ -311,62 +310,6 @@ class SearchCollection(ActionCollection):
             return ActionResponse(
                 success=False, message=f"{error_msg}\n\nError details: {error_trace}", metadata=metadata.model_dump()
             )
-
-    def mcp_get_search_capabilities(self) -> ActionResponse:
-        """Get information about search service capabilities and configuration.
-
-        Returns:
-            ActionResponse with search service capabilities and current configuration
-        """
-        capabilities = {
-            "search_engines": ["Google Custom Search API"],
-            "supported_features": [
-                "Web search with customizable result count",
-                "Safe search filtering",
-                "Language and country localization",
-                "Multiple output formats (markdown, json, text)",
-                "LLM-optimized result formatting",
-                "Detailed metadata tracking",
-            ],
-            "supported_formats": ["markdown", "json", "text"],
-            "configuration": {
-                "google_api_configured": bool(self.google_api_key and self.google_cse_id),
-                "max_results_per_query": 10,
-                "default_language": "en",
-                "default_country": "us",
-                "safe_search_default": True,
-            },
-            "limitations": [
-                "Google CSE has daily quota limits",
-                "Maximum 10 results per query",
-                "Requires valid API credentials",
-            ],
-        }
-
-        formatted_info = f"""# Search Service Capabilities
-
-        ## Available Search Engines
-        {chr(10).join(f"- {engine}" for engine in capabilities["search_engines"])}
-
-        ## Features
-        {chr(10).join(f"- {feature}" for feature in capabilities["supported_features"])}
-
-        ## Supported Output Formats
-        {chr(10).join(f"- {fmt}" for fmt in capabilities["supported_formats"])}
-
-        ## Current Configuration
-        - **Google API Configured:** {capabilities["configuration"]["google_api_configured"]}
-        - **Max Results Per Query:** {capabilities["configuration"]["max_results_per_query"]}
-        - **Default Language:** {capabilities["configuration"]["default_language"]}
-        - **Default Country:** {capabilities["configuration"]["default_country"]}
-        - **Safe Search Default:** {capabilities["configuration"]["safe_search_default"]}
-
-        ## Limitations
-        {chr(10).join(f"- {limitation}" for limitation in capabilities["limitations"])}
-        """
-
-        return ActionResponse(success=True, message=formatted_info, metadata=capabilities)
-
 
 # Example usage and entry point
 if __name__ == "__main__":
