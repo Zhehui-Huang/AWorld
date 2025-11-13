@@ -68,7 +68,7 @@ def example_1_basic_pdf_processing():
     
     # Task that requires PDF processing
     task_prompt = f"""
-    Extract every word or phrase used to describe a type of society within this article. Only list the terms or phrases that are explicitly used to refer to a kind of society. Do not include generic terms. PDF: {pdf_path}.
+    Extract every word or phrase used to describe a type of society within this article (only need to cover the first one third of the paper, not the whole paper.). Only list the terms or phrases that are explicitly used to refer to a kind of society. Do not include generic terms. PDF: {pdf_path}.
     """
 
     task = Task(

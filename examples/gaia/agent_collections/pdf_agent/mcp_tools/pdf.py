@@ -553,7 +553,8 @@ class DocumentExtractionCollection(ActionCollection):
         self,
         summary: str = Field(description="A comprehensive summary of all findings from the pages processed so far"),
         reason: str = Field(description="Reason for needing to continue processing more pages"),
-        processed_page_range: str | None = Field(default=None, description="Page range of all processed pages so far (e.g., '0-2')")
+        processed_page_range: str | None = Field(default=None, description="Page range of all processed pages so far (e.g., '0-2')"),
+        total_pages: int | None = Field(default=None, description="Total number of pages in the document")
     ) -> ActionResponse:
         """Summarize current findings and reset conversation memory.
 
@@ -571,6 +572,7 @@ class DocumentExtractionCollection(ActionCollection):
             summary: A comprehensive summary of findings from pages processed so far
             reason: Explanation of why more pages need to be processed
             processed_page_range: Page range of all processed pages so far (e.g., '0-2')
+            total_pages: Total number of pages in the document
         Returns:
             ActionResponse confirming memory reset with summary
         """
@@ -581,14 +583,16 @@ class DocumentExtractionCollection(ActionCollection):
                 reason = reason.default
             if isinstance(processed_page_range, FieldInfo):
                 processed_page_range = processed_page_range.default
-
+            if isinstance(total_pages, FieldInfo):
+                total_pages = total_pages.default
             self._color_log(f"📝 Summarizing and resetting memory", Color.cyan)
             self._color_log(f"Summary: {summary[:200]}...", Color.blue, "debug")
             self._color_log(f"Reason: {reason}", Color.blue, "debug")
             self._color_log(f"Processed Page Range: {processed_page_range}", Color.blue, "debug")
-
+            self._color_log(f"Total Pages: {total_pages}", Color.blue, "debug")
             # Format the summary message with explicit processed_page_range
             formatted_summary = f"""## Progress Summary
+**Total Pages:** {total_pages}
 **Pages Processed So Far:** {processed_page_range if processed_page_range else "As documented above"}
 **Findings:** {summary}
 **Reason to Continue:** {reason}
