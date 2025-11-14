@@ -183,7 +183,6 @@ class ImageAgentCollection(ActionCollection):
             default="Image agent specialized in image processing and analysis",
             description="Description of the image agent's purpose",
         ),
-        max_steps: int = Field(default=15, description="Maximum steps for agent execution"),
     ) -> ActionResponse:
         """Create a new image agent and execute the given task.
 
@@ -201,11 +200,13 @@ class ImageAgentCollection(ActionCollection):
             task_prompt: The task or query for the image agent to process
             name: Name for the image agent (default: "image_agent")
             description: Description of the agent's purpose
-            max_steps: Maximum number of execution steps (default: 15)
 
         Returns:
             ActionResponse with execution results and agent metadata including agent_id
         """
+        # Load max_steps from environment
+        max_steps = int(os.getenv("IMAGE_AGENT_MAX_STEPS", "15"))
+
         try:
             self._color_log(f"🤖 Creating new image agent: {name}", Color.cyan)
 
@@ -261,7 +262,7 @@ class ImageAgentCollection(ActionCollection):
                 self._color_log(f"⚠️ Task completed with no answer", Color.yellow)
 
             # Format response
-            formatted_message = f"""**Answer:** {answer if answer else "No answer generated"}"""
+            formatted_message = answer
 
             return ActionResponse(
                 success=True,
@@ -289,7 +290,6 @@ class ImageAgentCollection(ActionCollection):
         self,
         agent_id: str = Field(description="The ID of an existing image agent to use"),
         task_prompt: str = Field(description="The task or query for the image agent to process"),
-        max_steps: int = Field(default=15, description="Maximum steps for agent execution"),
     ) -> ActionResponse:
         """Use an existing image agent to execute a task.
 
@@ -300,11 +300,13 @@ class ImageAgentCollection(ActionCollection):
         Args:
             agent_id: The ID of an existing image agent (obtained from mcp_create_image_agent)
             task_prompt: The task or query for the image agent to process
-            max_steps: Maximum number of execution steps (default: 15)
 
         Returns:
             ActionResponse with execution results and agent metadata
         """
+        # Load max_steps from environment
+        max_steps = int(os.getenv("IMAGE_AGENT_MAX_STEPS", "15"))
+
         try:
             # Check if agent exists
             if not self.agent_registry.exists(agent_id):
@@ -372,7 +374,7 @@ class ImageAgentCollection(ActionCollection):
                 self._color_log(f"⚠️ Task completed with no answer", Color.yellow)
 
             # Format response
-            formatted_message = f"""**Answer:** {answer if answer else "No answer generated"}"""
+            formatted_message = answer
 
             return ActionResponse(
                 success=True,

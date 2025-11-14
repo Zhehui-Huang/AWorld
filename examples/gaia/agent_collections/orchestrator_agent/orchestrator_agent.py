@@ -44,9 +44,7 @@ class OrchestratorMetadata(BaseModel):
     agent_id: str
     name: str
     description: str
-    available_agents: list[str]
     orchestration_level: int
-    parent_orchestrator_id: Optional[str] = None
 
 
 class AgentRegistry:
@@ -82,7 +80,7 @@ class OrchestratorAgentCollection(ActionCollection):
     """MCP service for hierarchical orchestrator agent that coordinates multiple specialized agents.
 
     Provides recursive orchestration capabilities including:
-    - Create orchestrator agents with configurable sub-agent access
+    - Create orchestrator agents with access to all available MCP tools
     - Support nested orchestration (orchestrators creating orchestrators)
     - Manage complex multi-agent workflows
     - Enable parallel and sequential execution patterns
@@ -119,26 +117,10 @@ class OrchestratorAgentCollection(ActionCollection):
             self.logger.error(f"Error loading mcp config: {e}")
             return {}
 
-    def _filter_mcp_config(self, available_agents: List[str]) -> Dict[str, Any]:
-        """Filter MCP configuration to only include specified agents."""
-        if not available_agents:
-            return self.base_mcp_config
-
-        filtered_config = {"mcpServers": {}}
-        for agent_name in available_agents:
-            if agent_name in self.base_mcp_config.get("mcpServers", {}):
-                filtered_config["mcpServers"][agent_name] = self.base_mcp_config["mcpServers"][agent_name]
-            else:
-                self.logger.warning(f"Agent '{agent_name}' not found in base MCP config")
-
-        return filtered_config
-
     def _create_agent_instance(
         self,
         name: str,
         description: str,
-        available_agents: List[str],
-        parent_orchestrator_id: Optional[str] = None,
     ) -> tuple[Agent, OrchestratorMetadata]:
         """Create a new orchestrator agent instance with its own configuration."""
         # Generate unique agent ID
@@ -160,9 +142,9 @@ class OrchestratorAgentCollection(ActionCollection):
             llm_temperature=llm_temperature,
         )
 
-        # Filter MCP config to only include specified agents
-        mcp_config = self._filter_mcp_config(available_agents)
-        actual_available_agents = list(mcp_config.get("mcpServers", {}).keys())
+        # Use base MCP config with all agents
+        mcp_config = self.base_mcp_config
+        mcp_servers = list(mcp_config.get("mcpServers", {}).keys())
 
         # Update orchestration level in environment for sub-orchestrators
         new_level = self.orchestration_level + 1
@@ -172,14 +154,14 @@ class OrchestratorAgentCollection(ActionCollection):
             env_config["ORCHESTRATION_LEVEL"] = str(new_level)
             mcp_config["mcpServers"]["orchestrator_agent"]["env"] = env_config
 
-        # Create orchestrator agent with filtered MCP tools
+        # Create orchestrator agent with MCP tools
         agent = Agent(
             conf=agent_config,
             name=name,
             agent_id=agent_id,
             system_prompt=system_prompt,
             mcp_config=mcp_config,
-            mcp_servers=actual_available_agents,
+            mcp_servers=mcp_servers,
         )
 
         # Create metadata
@@ -187,9 +169,7 @@ class OrchestratorAgentCollection(ActionCollection):
             agent_id=agent_id,
             name=name,
             description=description,
-            available_agents=actual_available_agents,
             orchestration_level=new_level,
-            parent_orchestrator_id=parent_orchestrator_id,
         )
 
         # Register agent
@@ -205,14 +185,6 @@ class OrchestratorAgentCollection(ActionCollection):
             default="Orchestrator agent for multi-agent coordination",
             description="Description of the orchestrator's purpose",
         ),
-        available_agents: List[str] = Field(
-            default=["search_agent", "pdf_agent", "image_agent", "orchestrator_agent"],
-            description="List of agent types this orchestrator can use (e.g., ['search_agent', 'pdf_agent'])",
-        ),
-        max_steps: int = Field(default=50, description="Maximum steps for orchestrator execution"),
-        parent_orchestrator_id: str = Field(
-            default=None, description="ID of parent orchestrator (for tracking hierarchy)"
-        ),
     ) -> ActionResponse:
         """
         Create a new orchestrator agent and execute the given task.
@@ -221,39 +193,18 @@ class OrchestratorAgentCollection(ActionCollection):
         sub-orchestrators for complex workflows requiring nested coordination.
 
         Key Features:
-        1. Dynamic agent selection from available_agents list
-        2. Recursive orchestration (can create sub-orchestrators)
-        3. Parallel and sequential execution patterns
-        4. Context and memory preservation across agent calls
-        5. Hierarchical task decomposition
-
-        LLM configuration is loaded from environment variables:
-        - LLM_PROVIDER (default: "openai")
-        - LLM_MODEL_NAME (default: "gpt-4o")
-        - LLM_BASE_URL (optional)
-        - LLM_API_KEY (required)
-        - LLM_TEMPERATURE (default: "0.0")
+        1. Recursive orchestration (can create sub-orchestrators)
+        2. Parallel and sequential execution patterns
+        3. Context and memory preservation across agent calls
+        4. Hierarchical task decomposition
 
         Args:
             task_prompt: The task to orchestrate (provide complete context)
             name: Name for the orchestrator
             description: Description of orchestrator's purpose
-            available_agents: List of agent types this orchestrator can use
-            max_steps: Maximum execution steps
-            parent_orchestrator_id: ID of parent orchestrator (for tracking)
 
         Returns:
             ActionResponse with execution results and orchestrator metadata
-
-        Example:
-            ```
-            orchestrator_agent.mcp_create_orchestrator_agent(
-                task_prompt="Find paper X from 2022, extract figure with 3 axes, return axis labels",
-                name="paper_analyzer",
-                available_agents=["search_agent", "pdf_agent", "image_agent"],
-                max_steps=20
-            )
-            ```
         """
         # Handle FieldInfo objects
         if isinstance(task_prompt, FieldInfo):
@@ -262,26 +213,20 @@ class OrchestratorAgentCollection(ActionCollection):
             name = name.default
         if isinstance(description, FieldInfo):
             description = description.default
-        if isinstance(available_agents, FieldInfo):
-            available_agents = available_agents.default
-        if isinstance(max_steps, FieldInfo):
-            max_steps = max_steps.default
-        if isinstance(parent_orchestrator_id, FieldInfo):
-            parent_orchestrator_id = parent_orchestrator_id.default
+
+        # Load max_steps from environment
+        max_steps = int(os.getenv("ORCHESTRATOR_MAX_STEPS", "50"))
 
         try:
             indent = "  " * self.orchestration_level
             self._color_log(
                 f"{indent}🎭 Creating orchestrator (level {self.orchestration_level + 1}): {name}", Color.cyan
             )
-            self._color_log(f"{indent}   Available agents: {available_agents}", Color.blue, "debug")
 
             # Create orchestrator instance
             agent, metadata = self._create_agent_instance(
                 name=name,
                 description=description,
-                available_agents=available_agents,
-                parent_orchestrator_id=parent_orchestrator_id,
             )
 
             self._color_log(f"{indent}✅ Orchestrator created with ID: {metadata.agent_id}", Color.green)
@@ -330,7 +275,7 @@ class OrchestratorAgentCollection(ActionCollection):
                 self._color_log(f"{indent}⚠️ Orchestration completed with no answer", Color.yellow)
 
             # Format response
-            formatted_message = f"""**Answer:** {answer if answer else "No answer generated"}"""
+            formatted_message = answer
 
             return ActionResponse(
                 success=True,
@@ -339,9 +284,7 @@ class OrchestratorAgentCollection(ActionCollection):
                     "agent_id": metadata.agent_id,
                     "agent_name": metadata.name,
                     "description": metadata.description,
-                    "available_agents": metadata.available_agents,
                     "orchestration_level": metadata.orchestration_level,
-                    "parent_orchestrator_id": metadata.parent_orchestrator_id,
                 },
             )
 
@@ -360,7 +303,6 @@ class OrchestratorAgentCollection(ActionCollection):
         self,
         agent_id: str = Field(description="The ID of an existing orchestrator to use"),
         task_prompt: str = Field(description="The task for the orchestrator to coordinate"),
-        max_steps: int = Field(default=50, description="Maximum steps for execution"),
     ) -> ActionResponse:
         """
         Use an existing orchestrator agent to execute a task.
@@ -371,7 +313,6 @@ class OrchestratorAgentCollection(ActionCollection):
         Args:
             agent_id: ID of the existing orchestrator
             task_prompt: The task to orchestrate
-            max_steps: Maximum execution steps
 
         Returns:
             ActionResponse with execution results and orchestrator metadata
@@ -381,17 +322,18 @@ class OrchestratorAgentCollection(ActionCollection):
             agent_id = agent_id.default
         if isinstance(task_prompt, FieldInfo):
             task_prompt = task_prompt.default
-        if isinstance(max_steps, FieldInfo):
-            max_steps = max_steps.default
+
+        # Load max_steps from environment
+        max_steps = int(os.getenv("ORCHESTRATOR_MAX_STEPS", "50"))
 
         try:
             # Check if orchestrator exists
             if not self.agent_registry.exists(agent_id):
-                available_agents = [m.agent_id for m in self.agent_registry.list_agents()]
+                available_orchestrators = [m.agent_id for m in self.agent_registry.list_agents()]
                 return ActionResponse(
                     success=False,
-                    message=f"Orchestrator ID '{agent_id}' not found. Available: {available_agents}",
-                    metadata={"error_type": "orchestrator_not_found", "available_orchestrators": available_agents},
+                    message=f"Orchestrator ID '{agent_id}' not found. Available: {available_orchestrators}",
+                    metadata={"error_type": "orchestrator_not_found", "available_orchestrators": available_orchestrators},
                 )
 
             # Get existing orchestrator
@@ -452,7 +394,7 @@ class OrchestratorAgentCollection(ActionCollection):
                 self._color_log(f"{indent}⚠️ Orchestration completed with no answer", Color.yellow)
 
             # Format response
-            formatted_message = f"""**Answer:** {answer if answer else "No answer generated"}"""
+            formatted_message = answer
 
             return ActionResponse(
                 success=True,
@@ -461,9 +403,7 @@ class OrchestratorAgentCollection(ActionCollection):
                     "agent_id": metadata.agent_id,
                     "agent_name": metadata.name,
                     "description": metadata.description,
-                    "available_agents": metadata.available_agents,
                     "orchestration_level": metadata.orchestration_level,
-                    "parent_orchestrator_id": metadata.parent_orchestrator_id,
                 },
             )
 

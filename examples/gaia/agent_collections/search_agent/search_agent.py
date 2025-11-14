@@ -163,7 +163,6 @@ class SearchAgentCollection(ActionCollection):
             default="Search agent specialized in web search and file retrieval",
             description="Description of the search agent's purpose",
         ),
-        max_steps: int = Field(default=15, description="Maximum steps for agent execution"),
     ) -> ActionResponse:
         """
         Create a new search agent and execute the given task.
@@ -182,7 +181,6 @@ class SearchAgentCollection(ActionCollection):
             task_prompt: The task or query to process
             name: Name for the agent
             description: Description of agent's purpose
-            max_steps: Maximum execution steps
 
         Returns:
             ActionResponse with execution results and agent metadata
@@ -194,8 +192,9 @@ class SearchAgentCollection(ActionCollection):
             name = name.default
         if isinstance(description, FieldInfo):
             description = description.default
-        if isinstance(max_steps, FieldInfo):
-            max_steps = max_steps.default
+
+        # Load max_steps from environment
+        max_steps = int(os.getenv("SEARCH_AGENT_MAX_STEPS", "15"))
 
         try:
             self._color_log(f"🤖 Creating new search agent: {name}", Color.cyan)
@@ -252,7 +251,7 @@ class SearchAgentCollection(ActionCollection):
                 self._color_log(f"⚠️ Task completed with no answer", Color.yellow)
 
             # Format response
-            formatted_message = f"""**Answer:** {answer if answer else "No answer generated"}"""
+            formatted_message = answer
 
             return ActionResponse(
                 success=True,
@@ -280,7 +279,6 @@ class SearchAgentCollection(ActionCollection):
         self,
         agent_id: str = Field(description="The ID of an existing search agent to use"),
         task_prompt: str = Field(description="The task or query for the search agent to process"),
-        max_steps: int = Field(default=12, description="Maximum steps for agent execution"),
     ) -> ActionResponse:
         """
         Use an existing search agent to execute a task.
@@ -291,7 +289,6 @@ class SearchAgentCollection(ActionCollection):
         Args:
             agent_id: ID of the existing search agent
             task_prompt: The task or query to process
-            max_steps: Maximum execution steps
 
         Returns:
             ActionResponse with execution results and agent metadata
@@ -301,8 +298,9 @@ class SearchAgentCollection(ActionCollection):
             agent_id = agent_id.default
         if isinstance(task_prompt, FieldInfo):
             task_prompt = task_prompt.default
-        if isinstance(max_steps, FieldInfo):
-            max_steps = max_steps.default
+
+        # Load max_steps from environment
+        max_steps = int(os.getenv("SEARCH_AGENT_MAX_STEPS", "15"))
 
         try:
             # Check if agent exists
@@ -371,7 +369,7 @@ class SearchAgentCollection(ActionCollection):
                 self._color_log(f"⚠️ Task completed with no answer", Color.yellow)
 
             # Format response
-            formatted_message = f"""**Answer:** {answer if answer else "No answer generated"}"""
+            formatted_message = answer
 
             return ActionResponse(
                 success=True,
