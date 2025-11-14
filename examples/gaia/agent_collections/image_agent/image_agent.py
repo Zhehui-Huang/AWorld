@@ -193,6 +193,10 @@ class ImageAgentCollection(ActionCollection):
         4. Dedicated memory module
         5. MCP tools for image analysis and metadata extraction
 
+        The image agent provides the following capabilities:
+        1. mcp_analyze_image_ai: Analyze image content using AI vision models.
+        2. mcp_get_image_metadata: Extract technical metadata from images (dimensions, format, file size, etc.).
+
         The agent will autonomously handle its thinking, planning, and tool calls
         to complete the task using a think-act-observe loop.
 
@@ -296,6 +300,10 @@ class ImageAgentCollection(ActionCollection):
         This method reuses a previously created image agent, maintaining its
         configuration, memory, and state across multiple tasks. This is useful
         for maintaining context and continuity across related image processing tasks.
+
+        The image agent provides the following capabilities:
+        1. mcp_analyze_image_ai: Analyze image content using AI vision models.
+        2. mcp_get_image_metadata: Extract technical metadata from images (dimensions, format, file size, etc.).
 
         Args:
             agent_id: The ID of an existing image agent (obtained from mcp_create_image_agent)

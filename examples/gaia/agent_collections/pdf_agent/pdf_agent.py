@@ -365,6 +365,14 @@ class PDFAgentCollection(ActionCollection):
         4. Dedicated memory module
         5. MCP tools
 
+        The PDF agent provides the following capabilities:
+        1. mcp_extract_document_content: Extract text content from PDF documents.
+        2. mcp_get_document_metadata: Extract metadata from PDF documents.
+        3. mcp_summarize_and_reset_memory: Summarize conversation history and reset memory to manage token limits.
+        4. mcp_list_supported_formats: List all supported document formats.
+        5. mcp_analyze_image_ai: Analyze image content using AI vision models (for images in PDFs).
+        6. mcp_get_image_metadata: Extract technical metadata from images.
+
         The agent will autonomously handle its thinking, planning, and tool calls
         to complete the task.
 
@@ -476,6 +484,14 @@ class PDFAgentCollection(ActionCollection):
 
         This method reuses a previously created PDF agent, maintaining its
         configuration, memory, and state across multiple tasks.
+
+        The PDF agent provides the following capabilities:
+        1. mcp_extract_document_content: Extract text content from PDF documents.
+        2. mcp_get_document_metadata: Extract metadata from PDF documents.
+        3. mcp_summarize_and_reset_memory: Summarize conversation history and reset memory to manage token limits.
+        4. mcp_list_supported_formats: List all supported document formats.
+        5. mcp_analyze_image_ai: Analyze image content using AI vision models (for images in PDFs).
+        6. mcp_get_image_metadata: Extract technical metadata from images.
 
         Args:
             agent_id: ID of the existing PDF agent

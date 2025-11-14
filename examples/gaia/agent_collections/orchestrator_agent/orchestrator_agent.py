@@ -192,6 +192,12 @@ class OrchestratorAgentCollection(ActionCollection):
         This orchestrator can coordinate multiple specialized agents and even create
         sub-orchestrators for complex workflows requiring nested coordination.
 
+        The orchestrator agent provides the following capabilities:
+        1. mcp_create_search_agent / mcp_use_existing_search_agent: Create or use search agents for web searches and file downloads.
+        2. mcp_create_image_agent / mcp_use_existing_image_agent: Create or use image agents for image analysis and metadata extraction.
+        3. mcp_create_pdf_agent / mcp_use_existing_pdf_agent: Create or use PDF agents for document processing and content extraction.
+        4. mcp_create_orchestrator_agent / mcp_use_existing_orchestrator_agent: Create or use sub-orchestrators for nested multi-agent coordination.
+
         Key Features:
         1. Recursive orchestration (can create sub-orchestrators)
         2. Parallel and sequential execution patterns
@@ -309,6 +315,12 @@ class OrchestratorAgentCollection(ActionCollection):
 
         This method reuses a previously created orchestrator, maintaining its
         configuration, available agents, and state across multiple tasks.
+
+        The orchestrator agent provides the following capabilities:
+        1. mcp_create_search_agent / mcp_use_existing_search_agent: Create or use search agents for web searches and file downloads.
+        2. mcp_create_image_agent / mcp_use_existing_image_agent: Create or use image agents for image analysis and metadata extraction.
+        3. mcp_create_pdf_agent / mcp_use_existing_pdf_agent: Create or use PDF agents for document processing and content extraction.
+        4. mcp_create_orchestrator_agent / mcp_use_existing_orchestrator_agent: Create or use sub-orchestrators for nested multi-agent coordination.
 
         Args:
             agent_id: ID of the existing orchestrator

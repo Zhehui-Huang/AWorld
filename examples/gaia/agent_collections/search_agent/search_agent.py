@@ -160,7 +160,7 @@ class SearchAgentCollection(ActionCollection):
         task_prompt: str = Field(description="The task or query for the search agent to process"),
         name: str = Field(default="search_agent", description="Name for the search agent"),
         description: str = Field(
-            default="Search agent specialized in web search and file retrieval",
+            default="Search agent specialized in web search and file download",
             description="Description of the search agent's purpose",
         ),
     ) -> ActionResponse:
@@ -174,8 +174,9 @@ class SearchAgentCollection(ActionCollection):
         4. Dedicated memory module
         5. MCP tools (search and download)
 
-        The agent will autonomously handle its thinking, planning, and tool calls
-        to complete the task.
+        The search agent provides the following capabilities:
+        1. mcp_search_google: Perform web searches using Google.
+        2. mcp_download_file: Download files directly from the web given the URL.
 
         Args:
             task_prompt: The task or query to process
@@ -283,8 +284,11 @@ class SearchAgentCollection(ActionCollection):
         """
         Use an existing search agent to execute a task.
 
-        This method reuses a previously created search agent, maintaining its
-        configuration, memory, and state across multiple tasks.
+        This method reuses a previously created search agent, maintaining its configuration, memory, and state across multiple tasks.
+
+        The search agent provides the following capabilities:
+        1. mcp_search_google: Perform web searches using Google.
+        2. mcp_download_file: Download files directly from the web given the URL.
 
         Args:
             agent_id: ID of the existing search agent

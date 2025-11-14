@@ -27,14 +27,8 @@ class MemoryToolsCollection(ActionCollection):
         agent_type: str = Field(description="Type of agent (search_agent, pdf_agent, image_agent, orchestrator_agent)"),
         task_description: str = Field(description="Description of the completed task"),
         success: bool = Field(description="Whether the task was completed successfully"),
-        artifacts: list[dict] = Field(
-            default=[], 
-            description="List of concrete resources used or created (dicts with keys like 'type', 'name', 'path', 'url')."
-        ),
-        reflection: dict = Field(
-            default={}, 
-            description="Agent self-reflection with 'what_worked' (list), 'what_failed' (list), 'lessons_learned' (string)."
-        ),
+        artifacts: list[dict] = Field(description="List of concrete resources used or created (dicts with keys like 'type', 'name', 'path', 'url')."),
+        reflection: dict = Field(description="Agent self-reflection with 'what_worked' (list), 'what_failed' (list), 'lessons_learned' (string)."),
     ) -> ActionResponse:
         """
         Save a detailed task memory with artifacts and reflection for future use.
