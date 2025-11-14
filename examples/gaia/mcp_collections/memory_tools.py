@@ -23,69 +23,33 @@ class MemoryToolsCollection(ActionCollection):
 
     def mcp_save_task_memory(
         self,
-        agent_id: str = Field(
-            description="Unique ID of the agent instance (required)"
-        ),
-        agent_type: str = Field(
-            description="Type of agent (search_agent, pdf_agent, image_agent, orchestrator_agent)"
-        ),
-        task_description: str = Field(description="Description of the task that was completed"),
+        agent_id: str = Field(description="Unique ID of the agent instance (required)"),
+        agent_type: str = Field(description="Type of agent (search_agent, pdf_agent, image_agent, orchestrator_agent)"),
+        task_description: str = Field(description="Description of the completed task"),
         success: bool = Field(description="Whether the task was completed successfully"),
         artifacts: list[dict] = Field(
-            default=[],
-            description=(
-                "List of concrete resources used or created. Each artifact should be a dict with keys like 'type', 'name', 'path', 'url'. "
-                "Examples: "
-                "[{'type': 'pdf', 'name': 'Nature Article 2023', 'path': 'research_paper.pdf', 'url': 'https://nature.com/article123'}, "
-                "{'type': 'image', 'name': 'figure_3.png', 'path': figure_3.png'}]"
-            )
+            default=[], 
+            description="List of concrete resources used or created (dicts with keys like 'type', 'name', 'path', 'url')."
         ),
         reflection: dict = Field(
-            default={},
-            description=(
-                "Agent's self-reflection and learning from this task. "
-                "Required keys: 'what_worked' (list), 'what_failed' (list), 'lessons_learned' (string). "
-                "Example: {"
-                "'what_worked': ['Using arxiv.org for open access papers', 'Downloading PDFs directly instead of scraping'], "
-                "'what_failed': ['Generic search terms returned irrelevant results', 'Institutional access without credentials'], "
-                "'lessons_learned': 'Always prioritize open-access sources (arxiv, PMC) before attempting paywalled journals. Use specific search terms including publication year and author names for better results.'"
-                "}"
-            )
+            default={}, 
+            description="Agent self-reflection with 'what_worked' (list), 'what_failed' (list), 'lessons_learned' (string)."
         ),
     ) -> ActionResponse:
         """
-        Save a task memory for future reference with artifacts and reflection.
-        
-        **IMPORTANT: Save DETAILED, CONCRETE information!**
-
-        For all tasks:
-        - artifacts: Include ALL files, URLs, images, PDFs used or created with their full paths/URLs
-        - reflection: Reflect on what worked, what failed, and lessons learned
-
-        Example for search agent that found a paper:
-        ```
-        artifacts: [
-            {"type": "pdf", "name": "Attention Is All You Need", "path": "attention_paper.pdf", "url": "https://arxiv.org/pdf/1706.03762"},
-        ]
-        reflection: {
-            "what_worked": ["Using arxiv.org for open access", "Specific search terms with year"],
-            "what_failed": ["Generic search queries", "Paywalled journals"],
-            "lessons_learned": "Always prioritize open-access sources and use specific search terms"
-        }
-        ```
+        Save a detailed task memory with artifacts and reflection for future use.
 
         Args:
-            agent_id: Unique identifier for the agent instance (required)
-            agent_type: The type of agent
-            task_description: Brief description of the overall task
-            success: True if completed successfully, False if failed
-            artifacts: List of concrete resources (files, URLs, etc.) with full details
-            reflection: Agent's learning - what worked, what failed, lessons learned
-            
+            agent_id: Agent instance identifier.
+            agent_type: The type of agent.
+            task_description: Description of the task.
+            success: Task completion status.
+            artifacts: List of relevant files, URLs, or data.
+            reflection: Object with 'what_worked', 'what_failed', 'lessons_learned'.
+
         Returns:
-            ActionResponse confirming memory was saved
+            ActionResponse confirming if memory was saved.
         """
-        # Validate agent_type
         valid_types = ["search_agent", "pdf_agent", "image_agent", "orchestrator_agent"]
         if agent_type not in valid_types:
             return ActionResponse(
@@ -93,34 +57,22 @@ class MemoryToolsCollection(ActionCollection):
                 message=f"Invalid agent_type '{agent_type}'. Must be one of: {valid_types}",
                 metadata={"error": "invalid_agent_type"}
             )
-        
         try:
-            # Save the memory with artifacts and reflection
             self.memory.save_task_memory(
                 agent_id=agent_id,
                 agent_type=agent_type,
                 task_description=task_description,
                 success=success,
                 artifacts=artifacts,
-                reflection=reflection
+                reflection=reflection,
             )
-            
-            status_flag = "Success:" if success else "Fail:"
-            artifacts_count = len(artifacts)
-            has_reflection = bool(reflection)
-            message = (
-                f"{status_flag} Memory saved for agent {agent_id} ({agent_type})."
-            )
-            
             self._color_log(
-                f"💾 Saved task memory for agent {agent_id} ({agent_type}): "
-                f"{artifacts_count} artifacts, reflection: {has_reflection}",
+                f"💾 Saved memory for {agent_id} ({agent_type}): {len(artifacts)} artifacts, reflection: {bool(reflection)}",
                 Color.cyan, "debug"
             )
-            
             return ActionResponse(
                 success=True,
-                message=message,
+                message=f"{'Success:' if success else 'Fail:'} Memory saved for agent {agent_id} ({agent_type}).",
                 metadata={
                     "agent_type": agent_type,
                     "agent_id": agent_id,
@@ -128,9 +80,8 @@ class MemoryToolsCollection(ActionCollection):
                     "memory_saved": True,
                 }
             )
-            
         except Exception as e:
-            error_msg = f"Failed to save memory: {str(e)}"
+            error_msg = f"Failed to save memory: {e}"
             self.logger.error(error_msg)
             return ActionResponse(
                 success=False,
@@ -140,42 +91,32 @@ class MemoryToolsCollection(ActionCollection):
 
     def mcp_get_memory_stats(
         self,
-        agent_id: str = Field(
-            description="Unique ID of the agent instance to get statistics for"
-        ),
+        agent_id: str = Field(description="Unique ID of the agent instance to get statistics for"),
     ) -> ActionResponse:
         """
         Get statistics about saved memories for a specific agent instance.
-        
+
         Args:
-            agent_id: Unique ID of the agent instance
-            
+            agent_id: Agent instance identifier.
+
         Returns:
-            ActionResponse with memory statistics
+            ActionResponse with memory statistics.
         """
         try:
             stats = self.memory.get_memory_stats(agent_id)
-            
-            message = f"""Memory Statistics for agent {agent_id}:
-- Total memories: {stats['total_memories']}
-- Successful tasks: {stats['successful_tasks']}
-- Failed tasks: {stats['failed_tasks']}
-- Success rate: {stats['success_rate']:.1%}
-"""
-            
-            return ActionResponse(
-                success=True,
-                message=message,
-                metadata=stats
+            message = (
+                f"Memory Statistics for agent {agent_id}:\n"
+                f"- Total memories: {stats['total_memories']}\n"
+                f"- Successful tasks: {stats['successful_tasks']}\n"
+                f"- Failed tasks: {stats['failed_tasks']}\n"
+                f"- Success rate: {stats['success_rate']:.1%}\n"
             )
-            
+            return ActionResponse(success=True, message=message, metadata=stats)
         except Exception as e:
-            error_msg = f"Failed to get memory stats: {str(e)}"
+            error_msg = f"Failed to get memory stats: {e}"
             self.logger.error(error_msg)
             return ActionResponse(
-                success=False,
-                message=error_msg,
-                metadata={"error": str(e)}
+                success=False, message=error_msg, metadata={"error": str(e)}
             )
 
 
