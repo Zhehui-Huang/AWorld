@@ -167,7 +167,7 @@ def example_1_hierarchical_paper_analysis():
     # Task that requires image processing
     # task_prompt = f"""
     # Please analyze following two images one by one: {image_path}, {image_path_1}.
-    # You need to create an image_agent first, and then keep using this image agent.
+    # You need to create a file_agent first, and then keep using this file agent.
     # Please output their description.
     # """
 

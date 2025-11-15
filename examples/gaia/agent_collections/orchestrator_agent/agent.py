@@ -206,8 +206,8 @@ class OrchestratorAgentCollection(ActionCollection):
             description="Description of the orchestrator's purpose",
         ),
         available_agents: List[str] = Field(
-            default=["search_agent", "pdf_agent", "image_agent", "orchestrator_agent"],
-            description="List of agent types this orchestrator can use (e.g., ['search_agent', 'pdf_agent'])",
+            default=["search_agent", "file_agent", "orchestrator_agent"],
+            description="List of agent types this orchestrator can use (e.g., ['search_agent', 'file_agent'])",
         ),
         max_steps: int = Field(default=50, description="Maximum steps for orchestrator execution"),
         parent_orchestrator_id: str = Field(
@@ -250,7 +250,7 @@ class OrchestratorAgentCollection(ActionCollection):
             orchestrator_agent.mcp_create_orchestrator_agent(
                 task_prompt="Find paper X from 2022, extract figure with 3 axes, return axis labels",
                 name="paper_analyzer",
-                available_agents=["search_agent", "pdf_agent", "image_agent"],
+                available_agents=["search_agent", "file_agent"],
                 max_steps=20
             )
             ```

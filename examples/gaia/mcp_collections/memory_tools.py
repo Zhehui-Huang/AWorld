@@ -24,7 +24,7 @@ class MemoryToolsCollection(ActionCollection):
     def mcp_save_task_memory(
         self,
         agent_id: str = Field(description="Unique ID of the agent instance (required)"),
-        agent_type: str = Field(description="Type of agent (search_agent, pdf_agent, image_agent, orchestrator_agent)"),
+        agent_type: str = Field(description="Type of agent (search_agent, file_agent, orchestrator_agent)"),
         task_description: str = Field(description="Description of the completed task"),
         success: bool = Field(description="Whether the task was completed successfully"),
         artifacts: list[dict] = Field(
@@ -50,7 +50,7 @@ class MemoryToolsCollection(ActionCollection):
         Returns:
             ActionResponse confirming if memory was saved.
         """
-        valid_types = ["search_agent", "pdf_agent", "image_agent", "orchestrator_agent"]
+        valid_types = ["search_agent", "file_agent", "orchestrator_agent"]
         if agent_type not in valid_types:
             return ActionResponse(
                 success=False,
@@ -88,37 +88,6 @@ class MemoryToolsCollection(ActionCollection):
                 message=error_msg,
                 metadata={"error": str(e)}
             )
-
-    def mcp_get_memory_stats(
-        self,
-        agent_id: str = Field(description="Unique ID of the agent instance to get statistics for"),
-    ) -> ActionResponse:
-        """
-        Get statistics about saved memories for a specific agent instance.
-
-        Args:
-            agent_id: Agent instance identifier.
-
-        Returns:
-            ActionResponse with memory statistics.
-        """
-        try:
-            stats = self.memory.get_memory_stats(agent_id)
-            message = (
-                f"Memory Statistics for agent {agent_id}:\n"
-                f"- Total memories: {stats['total_memories']}\n"
-                f"- Successful tasks: {stats['successful_tasks']}\n"
-                f"- Failed tasks: {stats['failed_tasks']}\n"
-                f"- Success rate: {stats['success_rate']:.1%}\n"
-            )
-            return ActionResponse(success=True, message=message, metadata=stats)
-        except Exception as e:
-            error_msg = f"Failed to get memory stats: {e}"
-            self.logger.error(error_msg)
-            return ActionResponse(
-                success=False, message=error_msg, metadata={"error": str(e)}
-            )
-
 
 if __name__ == "__main__":
     from dotenv import load_dotenv

@@ -4,7 +4,7 @@
         "command": "python",
         "args": [
           "-m",
-          "examples.gaia.agent_collections.orchestrator_agent.orchestrator_agent"
+          "examples.gaia.agent_collections.orchestrator_agent.agent"
         ],
         "env": {
           "LLM_PROVIDER": "${LLM_PROVIDER}",
@@ -22,7 +22,7 @@
         "command": "python",
         "args": [
           "-m",
-          "examples.gaia.agent_collections.search_agent.search_agent"
+          "examples.gaia.agent_collections.search_agent.agent"
         ],
         "env": {
           "GOOGLE_API_KEY": "${GOOGLE_API_KEY}",
@@ -35,33 +35,21 @@
         },
         "client_session_timeout_seconds": 9999.0
       },
-      "pdf_agent": {
+      "file_agent": {
         "command": "python",
         "args": [
           "-m",
-          "examples.gaia.agent_collections.pdf_agent.pdf_agent"
+          "examples.gaia.agent_collections.file_agent.agent"
         ],
         "env": {
           "LLM_PROVIDER": "${LLM_PROVIDER}",
           "LLM_MODEL_NAME": "${LLM_MODEL_NAME}",
           "LLM_BASE_URL": "${LLM_BASE_URL}",
           "LLM_API_KEY": "${LLM_API_KEY}",
-          "AWORLD_WORKSPACE": "${AWORLD_WORKSPACE}"
-        },
-        "client_session_timeout_seconds": 9999.0
-      },
-      "image_agent": {
-        "command": "python",
-        "args": [
-          "-m",
-          "examples.gaia.agent_collections.image_agent.image_agent"
-        ],
-        "env": {
-          "LLM_PROVIDER": "${LLM_PROVIDER}",
-          "LLM_MODEL_NAME": "${LLM_MODEL_NAME}",
-          "LLM_BASE_URL": "${LLM_BASE_URL}",
-          "LLM_API_KEY": "${LLM_API_KEY}",
-          "AWORLD_WORKSPACE": "${AWORLD_WORKSPACE}"
+          "AWORLD_WORKSPACE": "${AWORLD_WORKSPACE}",
+          "IMAGE_LLM_MODEL_NAME": "${IMAGE_LLM_MODEL_NAME}",
+          "IMAGE_LLM_API_KEY": "${IMAGE_LLM_API_KEY}",
+          "IMAGE_LLM_BASE_URL": "${IMAGE_LLM_BASE_URL}"
         },
         "client_session_timeout_seconds": 9999.0
       }

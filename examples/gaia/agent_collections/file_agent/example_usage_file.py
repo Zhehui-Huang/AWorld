@@ -1,8 +1,8 @@
 """
-Example Usage of PDF Agent MCP Server
+Example Usage of File Agent MCP Server
 
-This script demonstrates how to use the PDF Agent MCP Server
-to create dynamic multi-layer agent architectures for PDF processing.
+This script demonstrates how to use the File Agent MCP Server
+to create dynamic multi-layer agent architectures for file processing (PDFs and images).
 
 Tests included:
 - Example 1: Basic PDF processing with text extraction
@@ -10,9 +10,9 @@ Tests included:
 - Example 3: Direct usage (without MCP protocol)
 - Example 4: Check service capabilities
 
-The script automatically tests all MCP tools available to the pdf agent:
+The script automatically tests all MCP tools available to the file agent:
 1. mcp_extract_document_content: Extract text and images from PDF documents
-2. mcp_extract_text_ocr: Extract text from images using OCR
+2. mcp_analyze_image_ai: AI-powered image analysis
 3. mcp_get_image_metadata: Extract technical metadata from images
 """
 
@@ -23,7 +23,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from examples.gaia.agent_collections.pdf_agent.pdf_agent import PDFAgent
+from examples.gaia.agent_collections.file_agent.agent import FileAgent
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
@@ -32,11 +32,11 @@ from aworld.agents.llm_agent import Agent
 from aworld.config.conf import AgentConfig, TaskConfig
 from aworld.core.task import Task
 from aworld.runner import Runners
-from examples.gaia.agent_collections.pdf_agent.prompt import system_prompt
+from examples.gaia.agent_collections.file_agent.prompt import system_prompt
 
 
 def example_1_basic_pdf_processing():
-    """Example 1: Create a new PDF agent and extract text from a PDF."""
+    """Example 1: Create a new file agent and extract text from a PDF."""
     print("\n" + "=" * 80)
     print("Example 1: Basic PDF Processing - Text Extraction")
     print("=" * 80)
@@ -55,12 +55,12 @@ def example_1_basic_pdf_processing():
         llm_temperature=0.0,
     )
 
-    main_agent = PDFAgent(
+    main_agent = FileAgent(
         conf=main_agent_config,
         name="main_agent",
         system_prompt=system_prompt,
         mcp_config=mcp_config,
-        mcp_servers=["pdf", "image"],
+        mcp_servers=["pdf", "image", "memory_tools"],
     )
 
     # Get absolute path to the sample PDF
@@ -93,7 +93,7 @@ def main():
     load_dotenv()
 
     print("\n" + "=" * 80)
-    print("PDF Agent MCP Server - Example Usage")
+    print("File Agent MCP Server - Example Usage")
     print("=" * 80)
 
     # Check environment

@@ -1,25 +1,18 @@
 """
-Image Agent MCP Server
+Search Agent MCP Server
 
-This module provides MCP server functionality for processing and analyzing images.
-It creates LLM-based agents that can autonomously perform image processing tasks using vision models.
+This module provides MCP server functionality for performing file finding and downloading using various search engines.
+It supports structured queries and returns LLM-friendly formatted search results.
 
 Key features:
-- Create independent image processing agents with dedicated LLM and memory
-- Reuse existing agents across multiple tasks
-- AI-powered image analysis using vision models (e.g., GPT-4o)
-- Extract technical metadata from images (dimensions, format, file size, etc.)
-- Support for multiple image formats (JPEG, PNG, GIF, WebP, BMP, TIFF)
-- Autonomous task execution with think-act-observe loop
-- LLM-optimized result formatting
+- Perform file finding and downloading using Google Custom Search API
+- Filter and format search results for LLM consumption
+- Validate and process search queries with metadata tracking
+- download files
 
 Main functions:
-- mcp_create_image_agent: Create a new image agent and execute a task
-- mcp_use_existing_image_agent: Use an existing image agent to execute a task
-
-MCP tools available to image agents:
-- mcp_analyze_image_ai: Analyze image content using AI vision models
-- mcp_get_image_metadata: Extract technical metadata from images
+- mcp_create_search_agent: Create search agent
+- mcp_use_existing_search_agent: Use existing search agent
 """
 
 import json
@@ -31,19 +24,20 @@ from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
+from pydantic.fields import FieldInfo
 
 from aworld.agents.llm_agent import Agent
 from aworld.config.conf import AgentConfig, TaskConfig
 from aworld.core.task import Task
-from aworld.logs.util import Color
+from aworld.logs.util import Color, logger
 from aworld.runner import Runners
-from examples.gaia.agent_collections.image_agent.prompt import system_prompt
+from examples.gaia.agent_collections.search_agent.prompt import system_prompt
 from examples.gaia.mcp_collections.base import ActionArguments, ActionCollection, ActionResponse
 from examples.gaia.agent_collections.shared_memory import get_agent_memory
 
 
-class ImageAgentMetadata(BaseModel):
-    """Metadata for an image agent instance."""
+class SearchAgentMetadata(BaseModel):
+    """Metadata for a search agent instance."""
 
     agent_id: str
     name: str
@@ -52,13 +46,13 @@ class ImageAgentMetadata(BaseModel):
 
 
 class AgentRegistry:
-    """Registry to manage created image agent instances."""
+    """Registry to manage created search agent instances."""
 
     def __init__(self):
         self._agents: Dict[str, Agent] = {}
-        self._metadata: Dict[str, ImageAgentMetadata] = {}
+        self._metadata: Dict[str, SearchAgentMetadata] = {}
 
-    def register(self, agent: Agent, metadata: ImageAgentMetadata) -> None:
+    def register(self, agent: Agent, metadata: SearchAgentMetadata) -> None:
         """Register a new agent instance."""
         self._agents[metadata.agent_id] = agent
         self._metadata[metadata.agent_id] = metadata
@@ -67,11 +61,11 @@ class AgentRegistry:
         """Get an agent by ID."""
         return self._agents.get(agent_id)
 
-    def get_metadata(self, agent_id: str) -> Optional[ImageAgentMetadata]:
+    def get_metadata(self, agent_id: str) -> Optional[SearchAgentMetadata]:
         """Get agent metadata by ID."""
         return self._metadata.get(agent_id)
 
-    def list_agents(self) -> list[ImageAgentMetadata]:
+    def list_agents(self) -> list[SearchAgentMetadata]:
         """List all registered agents."""
         return list(self._metadata.values())
 
@@ -80,31 +74,25 @@ class AgentRegistry:
         return agent_id in self._agents
 
 
-class ImageAgentCollection(ActionCollection):
-    """MCP service for image processing agents that can autonomously analyze and extract information from images.
+class SearchAgentCollection(ActionCollection):
+    """MCP service for file finding and downloading agent that able to use various search engines and download needed files.
 
-    This service manages the lifecycle of image processing agents, each with its own:
-    - Dedicated LLM instance for autonomous reasoning
-    - Memory module for maintaining context
-    - Access to image processing tools (AI analysis, metadata extraction)
-
-    Capabilities:
-    - Create new image agents with unique identities
-    - Reuse existing agents across multiple tasks
-    - Track and manage multiple agent instances
+    Provides comprehensive file finding and downloading capabilities including:
+    - create search agent
+    - reuse existing search agent
     """
 
     def __init__(self, arguments: ActionArguments) -> None:
         super().__init__(arguments)
         # Initialize agent registry
         self.agent_registry = AgentRegistry()
-        # Load MCP configuration for image tools
+        # Load MCP configuration for search tools
         self.mcp_config = self._load_mcp_config()
         # Log initialization status
-        self._color_log("Image agent service initialized", Color.green, "debug")
+        self._color_log("Search agent service initialized", Color.green, "debug")
 
     def _load_mcp_config(self) -> Dict[str, Any]:
-        """Load MCP configuration for image agent tools."""
+        """Load MCP configuration for search agent tools."""
         try:
             mcp_path = Path(__file__).parent / "mcp.json"
             with open(mcp_path, mode="r", encoding="utf-8") as f:
@@ -120,18 +108,10 @@ class ImageAgentCollection(ActionCollection):
         self,
         name: str,
         description: str,
-    ) -> tuple[Agent, ImageAgentMetadata]:
-        """Create a new image agent instance with its own configuration.
-
-        Args:
-            name: Name for the agent
-            description: Description of the agent's purpose
-
-        Returns:
-            Tuple of (Agent instance, ImageAgentMetadata)
-        """
+    ) -> tuple[Agent, SearchAgentMetadata]:
+        """Create a new search agent instance with its own configuration."""
         # Generate unique agent ID
-        agent_id = f"image_agent_{uuid.uuid4().hex[:8]}"
+        agent_id = f"search_agent_{uuid.uuid4().hex[:8]}"
 
         # Load LLM configuration from environment variables
         llm_provider = os.getenv("LLM_PROVIDER", "openai")
@@ -163,7 +143,7 @@ class ImageAgentCollection(ActionCollection):
         )
 
         # Create metadata
-        metadata = ImageAgentMetadata(
+        metadata = SearchAgentMetadata(
             agent_id=agent_id,
             name=name,
             description=description,
@@ -175,39 +155,51 @@ class ImageAgentCollection(ActionCollection):
 
         return agent, metadata
 
-    def mcp_create_image_agent(
+    def mcp_create_search_agent(
         self,
-        task_prompt: str = Field(description="The task or query for the image agent to process"),
-        name: str = Field(default="image_agent", description="Name for the image agent"),
-        description: str = Field(
-            default="Image agent specialized in image processing and analysis",
-            description="Description of the image agent's purpose",
-        ),
+        task_prompt: str = Field(description="The task or query for the search agent to process"),
+        name: str = Field(default="search_agent", description="Name for the search agent"),
+        description: str = Field(description="Description of the search agent's purpose"),
         max_steps: int = Field(default=15, description="Maximum steps for agent execution"),
     ) -> ActionResponse:
-        """Create a new image agent and execute the given task.
+        """
+        Create a new search agent and execute the given task. 
+        What search agents do:
+            - Find files
+            - Download files
+        What search agents not do:
+            - Process files
+            - Analyze files
+            - Extract information from files
 
-        This method creates an image agent with:
+        This method creates a search agent with:
         1. Unique agent ID
         2. Custom name and description
         3. Independent LLM instance (configured via environment variables)
         4. Dedicated memory module
-        5. MCP tools for image analysis and metadata extraction
-
-        The agent will autonomously handle its thinking, planning, and tool calls
-        to complete the task using a think-act-observe loop.
+        5. MCP tools (search and download)
 
         Args:
-            task_prompt: The task or query for the image agent to process
-            name: Name for the image agent (default: "image_agent")
-            description: Description of the agent's purpose
-            max_steps: Maximum number of execution steps (default: 15)
+            task_prompt: The task or query to process
+            name: Name for the agent
+            description: Description of agent's purpose
+            max_steps: Maximum execution steps
 
         Returns:
-            ActionResponse with execution results and agent metadata including agent_id
+            ActionResponse with execution results and agent metadata
         """
+        # Handle FieldInfo objects
+        if isinstance(task_prompt, FieldInfo):
+            task_prompt = task_prompt.default
+        if isinstance(name, FieldInfo):
+            name = name.default
+        if isinstance(description, FieldInfo):
+            description = description.default
+        if isinstance(max_steps, FieldInfo):
+            max_steps = max_steps.default
+
         try:
-            self._color_log(f"🤖 Creating new image agent: {name}", Color.cyan)
+            self._color_log(f"🤖 Creating new search agent: {name}", Color.cyan)
 
             # Create agent instance (LLM config loaded from environment)
             agent, metadata = self._create_agent_instance(
@@ -238,7 +230,7 @@ class ImageAgentCollection(ActionCollection):
             enhanced_task_prompt = task_prompt_with_id
             if relevant_memories:
                 memory_context = memory.format_memories_for_prompt(relevant_memories)
-                enhanced_task_prompt = f"{task_prompt_with_id}\n\n{memory_context}"
+                enhanced_task_prompt = f"{task_prompt_with_id}\n\n##\nPrevious Experience:\n{memory_context}\n##"
 
             # Execute task with the agent
             self._color_log(f"🚀 Executing task: {task_prompt[:100]}...", Color.cyan)
@@ -275,8 +267,8 @@ class ImageAgentCollection(ActionCollection):
             )
 
         except Exception as e:
-            error_msg = f"Failed to create and execute image agent: {str(e)}"
-            self.logger.error(f"Image agent error: {traceback.format_exc()}")
+            error_msg = f"Failed to create and execute search agent: {str(e)}"
+            self.logger.error(f"Search agent error: {traceback.format_exc()}")
             self._color_log(f"❌ {error_msg}", Color.red)
 
             return ActionResponse(
@@ -285,26 +277,33 @@ class ImageAgentCollection(ActionCollection):
                 metadata={"error_type": "agent_creation_failed", "error_details": str(e)},
             )
 
-    def mcp_use_existing_image_agent(
+    def mcp_use_existing_search_agent(
         self,
-        agent_id: str = Field(description="The ID of an existing image agent to use"),
-        task_prompt: str = Field(description="The task or query for the image agent to process"),
-        max_steps: int = Field(default=15, description="Maximum steps for agent execution"),
+        agent_id: str = Field(description="The ID of an existing search agent to use"),
+        task_prompt: str = Field(description="The task or query for the search agent to process"),
+        max_steps: int = Field(default=12, description="Maximum steps for agent execution"),
     ) -> ActionResponse:
-        """Use an existing image agent to execute a task.
+        """
+        Use an existing search agent to execute a task.
 
-        This method reuses a previously created image agent, maintaining its
-        configuration, memory, and state across multiple tasks. This is useful
-        for maintaining context and continuity across related image processing tasks.
+        This method reuses a previously created search agent, maintaining its configuration, memory, and state across multiple tasks.
 
         Args:
-            agent_id: The ID of an existing image agent (obtained from mcp_create_image_agent)
-            task_prompt: The task or query for the image agent to process
-            max_steps: Maximum number of execution steps (default: 15)
+            agent_id: ID of the existing search agent
+            task_prompt: The task or query to process
+            max_steps: Maximum execution steps
 
         Returns:
             ActionResponse with execution results and agent metadata
         """
+        # Handle FieldInfo objects
+        if isinstance(agent_id, FieldInfo):
+            agent_id = agent_id.default
+        if isinstance(task_prompt, FieldInfo):
+            task_prompt = task_prompt.default
+        if isinstance(max_steps, FieldInfo):
+            max_steps = max_steps.default
+
         try:
             # Check if agent exists
             if not self.agent_registry.exists(agent_id):
@@ -326,7 +325,7 @@ class ImageAgentCollection(ActionCollection):
                     metadata={"error_type": "agent_data_corrupted"},
                 )
 
-            self._color_log(f"🔄 Using existing image agent: {metadata.name} ({agent_id})", Color.cyan)
+            self._color_log(f"🔄 Using existing search agent: {metadata.name} ({agent_id})", Color.cyan)
 
             # Retrieve relevant memories from past tasks
             memory = get_agent_memory()
@@ -349,7 +348,7 @@ class ImageAgentCollection(ActionCollection):
             enhanced_task_prompt = task_prompt_with_id
             if relevant_memories:
                 memory_context = memory.format_memories_for_prompt(relevant_memories)
-                enhanced_task_prompt = f"{task_prompt_with_id}\n\n{memory_context}"
+                enhanced_task_prompt = f"{task_prompt_with_id}\n\n##\nPrevious Experience:\n{memory_context}\n##"
 
             # Execute task with the agent
             self._color_log(f"🚀 Executing task: {task_prompt[:100]}...", Color.cyan)
@@ -387,7 +386,7 @@ class ImageAgentCollection(ActionCollection):
 
         except Exception as e:
             error_msg = f"Failed to execute task with existing agent: {str(e)}"
-            self.logger.error(f"Image agent error: {traceback.format_exc()}")
+            self.logger.error(f"Search agent error: {traceback.format_exc()}")
             self._color_log(f"❌ {error_msg}", Color.red)
 
             return ActionResponse(
@@ -402,15 +401,14 @@ if __name__ == "__main__":
 
     # Default arguments for testing
     args = ActionArguments(
-        name="image_agent_service",
+        name="search_agent_service",
         transport="stdio",
         workspace=os.getenv("AWORLD_WORKSPACE", "~"),
     )
 
-    # Initialize and run the image service
+    # Initialize and run the search service
     try:
-        service = ImageAgentCollection(args)
+        service = SearchAgentCollection(args)
         service.run()
     except Exception as e:
         print(f"An error occurred: {e}: {traceback.format_exc()}")
-

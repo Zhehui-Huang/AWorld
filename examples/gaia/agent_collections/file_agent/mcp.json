@@ -1,10 +1,20 @@
 {
     "mcpServers": {
+        "pdf": {
+            "command": "python",
+            "args": [
+                "-m",
+                "examples.gaia.agent_collections.file_agent.mcp_tools.pdf"
+            ],
+            "env": {
+            },
+            "client_session_timeout_seconds": 9999.0
+        },
         "image": {
             "command": "python",
             "args": [
                 "-m",
-                "examples.gaia.agent_collections.image_agent.mcp_tools.image"
+                "examples.gaia.agent_collections.file_agent.mcp_tools.image"
             ],
             "env": {
                 "IMAGE_LLM_MODEL_NAME": "${IMAGE_LLM_MODEL_NAME}",

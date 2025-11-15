@@ -1,7 +1,7 @@
 """
-PDF Agent MCP Server
+File Agent MCP Server
 
-This module provides MCP server functionality for processing PDF documents and images.
+This module provides MCP server functionality for processing files including PDF documents and images.
 It supports PDF content extraction, text analysis, image processing, and returns LLM-friendly formatted results.
 
 Key features:
@@ -14,12 +14,12 @@ Key features:
 - Save extracted content to files
 
 Main functions:
-- mcp_create_pdf_agent: Create PDF agent
-- mcp_use_existing_pdf_agent: Use existing PDF agent
+- mcp_create_file_agent: Create file agent
+- mcp_use_existing_file_agent: Use existing file agent
 
-Image tools available:
-- mcp_extract_text_ocr: Extract text from images using OCR
-- mcp_get_image_metadata: Extract technical metadata from images
+Tools available:
+- PDF tools: Extract text and images from PDF documents
+- Image tools: AI-powered image analysis, OCR, metadata extraction
 """
 
 import json
@@ -43,13 +43,13 @@ from aworld.core.task import Task
 from aworld.logs.util import Color, logger
 from aworld.memory.models import MemoryHumanMessage, MessageMetadata
 from aworld.runner import Runners
-from examples.gaia.agent_collections.pdf_agent.prompt import system_prompt
+from examples.gaia.agent_collections.file_agent.prompt import system_prompt
 from examples.gaia.mcp_collections.base import ActionArguments, ActionCollection, ActionResponse
 from examples.gaia.agent_collections.shared_memory import get_agent_memory
 
 
-class PDFAgent(Agent):
-    """Extended Agent with memory reset capability for PDF processing."""
+class FileAgent(Agent):
+    """Extended Agent with memory reset capability for file processing (PDFs and images)."""
 
     @override
     async def _add_tool_result_to_memory(self, tool_call_id: str, tool_result: ActionResult, context: Context):
@@ -227,8 +227,8 @@ class PDFAgent(Agent):
             logger.info(message, color=color)
 
 
-class PDFAgentMetadata(BaseModel):
-    """Metadata for a PDF agent instance."""
+class FileAgentMetadata(BaseModel):
+    """Metadata for a file agent instance."""
 
     agent_id: str
     name: str
@@ -237,13 +237,13 @@ class PDFAgentMetadata(BaseModel):
 
 
 class AgentRegistry:
-    """Registry to manage created PDF agent instances."""
+    """Registry to manage created file agent instances."""
 
     def __init__(self):
         self._agents: Dict[str, Agent] = {}
-        self._metadata: Dict[str, PDFAgentMetadata] = {}
+        self._metadata: Dict[str, FileAgentMetadata] = {}
 
-    def register(self, agent: Agent, metadata: PDFAgentMetadata) -> None:
+    def register(self, agent: Agent, metadata: FileAgentMetadata) -> None:
         """Register a new agent instance."""
         self._agents[metadata.agent_id] = agent
         self._metadata[metadata.agent_id] = metadata
@@ -252,11 +252,11 @@ class AgentRegistry:
         """Get an agent by ID."""
         return self._agents.get(agent_id)
 
-    def get_metadata(self, agent_id: str) -> Optional[PDFAgentMetadata]:
+    def get_metadata(self, agent_id: str) -> Optional[FileAgentMetadata]:
         """Get agent metadata by ID."""
         return self._metadata.get(agent_id)
 
-    def list_agents(self) -> list[PDFAgentMetadata]:
+    def list_agents(self) -> list[FileAgentMetadata]:
         """List all registered agents."""
         return list(self._metadata.values())
 
@@ -265,25 +265,27 @@ class AgentRegistry:
         return agent_id in self._agents
 
 
-class PDFAgentCollection(ActionCollection):
-    """MCP service for PDF processing agent that can extract and analyze PDF documents.
+class FileAgentCollection(ActionCollection):
+    """MCP service for file processing agent that can extract and analyze PDF documents and images.
 
-    Provides comprehensive PDF processing capabilities including:
-    - create PDF agent
-    - reuse existing PDF agent
+    Provides comprehensive file processing capabilities including:
+    - create file agent
+    - reuse existing file agent
+    - process PDF documents
+    - analyze images
     """
 
     def __init__(self, arguments: ActionArguments) -> None:
         super().__init__(arguments)
         # Initialize agent registry
         self.agent_registry = AgentRegistry()
-        # Load MCP configuration for search tools
+        # Load MCP configuration for file processing tools
         self.mcp_config = self._load_mcp_config()
         # Log initialization status
-        self._color_log("PDF agent service initialized", Color.green, "debug")
+        self._color_log("File agent service initialized", Color.green, "debug")
 
     def _load_mcp_config(self) -> Dict[str, Any]:
-        """Load MCP configuration for PDF agent tools."""
+        """Load MCP configuration for file agent tools."""
         try:
             mcp_path = Path(__file__).parent / "mcp.json"
             with open(mcp_path, mode="r", encoding="utf-8") as f:
@@ -299,10 +301,10 @@ class PDFAgentCollection(ActionCollection):
         self,
         name: str,
         description: str,
-    ) -> tuple[Agent, PDFAgentMetadata]:
-        """Create a new PDF agent instance with its own configuration."""
+    ) -> tuple[Agent, FileAgentMetadata]:
+        """Create a new file agent instance with its own configuration."""
         # Generate unique agent ID
-        agent_id = f"pdf_agent_{uuid.uuid4().hex[:8]}"
+        agent_id = f"file_agent_{uuid.uuid4().hex[:8]}"
 
         # Load LLM configuration from environment variables
         llm_provider = os.getenv("LLM_PROVIDER", "openai")
@@ -323,8 +325,8 @@ class PDFAgentCollection(ActionCollection):
         # Get available MCP servers
         available_servers = list(self.mcp_config.get("mcpServers", {}).keys())
 
-        # Create agent with MCP tools using custom PDFAgent class
-        agent = PDFAgent(
+        # Create agent with MCP tools using custom FileAgent class
+        agent = FileAgent(
             conf=agent_config,
             name=name,
             agent_id=agent_id,
@@ -334,7 +336,7 @@ class PDFAgentCollection(ActionCollection):
         )
 
         # Create metadata
-        metadata = PDFAgentMetadata(
+        metadata = FileAgentMetadata(
             agent_id=agent_id,
             name=name,
             description=description,
@@ -346,31 +348,33 @@ class PDFAgentCollection(ActionCollection):
 
         return agent, metadata
 
-    def mcp_create_pdf_agent(
+    def mcp_create_file_agent(
         self,
-        task_prompt: str = Field(description="The task or query for the pdf agent to process"),
-        name: str = Field(default="pdf_agent", description="Name for the pdf agent"),
+        task_prompt: str = Field(description="The task or query for the file agent to process"),
+        file_paths: str = Field(default="", description="Comma-separated local file paths (e.g., 'file1.pdf, image.png')"),
+        name: str = Field(default="file_agent", description="Name for the file agent"),
         description: str = Field(
-            default="PDF agent specialized in pdf processing",
-            description="Description of the pdf agent's purpose",
+            default="File agent specialized in PDF and image processing",
+            description="Description of the file agent's purpose",
         ),
         max_steps: int = Field(default=12, description="Maximum steps for agent execution"),
     ) -> ActionResponse:
         """
-        Create a new pdf agent and execute the given task.
+        Create a new file agent and execute the given task.
 
-        This method creates a pdf agent with:
+        This method creates a file agent with:
         1. Unique agent ID
         2. Custom name and description
         3. Independent LLM instance (configured via environment variables)
         4. Dedicated memory module
-        5. MCP tools
+        5. MCP tools for PDF and image processing
 
         The agent will autonomously handle its thinking, planning, and tool calls
         to complete the task.
 
         Args:
             task_prompt: The task or query to process
+            file_paths: Comma-separated local file paths (e.g., 'file1.pdf, image.png')
             name: Name for the agent
             description: Description of agent's purpose
             max_steps: Maximum execution steps
@@ -381,6 +385,8 @@ class PDFAgentCollection(ActionCollection):
         # Handle FieldInfo objects
         if isinstance(task_prompt, FieldInfo):
             task_prompt = task_prompt.default
+        if isinstance(file_paths, FieldInfo):
+            file_paths = file_paths.default
         if isinstance(name, FieldInfo):
             name = name.default
         if isinstance(description, FieldInfo):
@@ -389,7 +395,7 @@ class PDFAgentCollection(ActionCollection):
             max_steps = max_steps.default
 
         try:
-            self._color_log(f"🤖 Creating new pdf agent: {name}", Color.cyan)
+            self._color_log(f"🤖 Creating new file agent: {name}", Color.cyan)
 
             # Create agent instance (LLM config loaded from environment)
             agent, metadata = self._create_agent_instance(
@@ -413,21 +419,25 @@ class PDFAgentCollection(ActionCollection):
                     Color.blue
                 )
             
-            # Add agent ID to task prompt
-            task_prompt_with_id = f"[Agent ID: {metadata.agent_id}]\n\n{task_prompt}"
+            # Add file paths to task prompt if provided
+            if file_paths:
+                self._color_log(f"📁 File paths specified: {file_paths}", Color.blue)
+                task_prompt = f"{task_prompt}\n\n**Files to process:** {file_paths}"
             
+            # Add agent ID to task prompt
+            task_prompt = f"{task_prompt}\n\n[Agent ID: {metadata.agent_id}]"
+
             # Enhance task prompt with past experiences
-            enhanced_task_prompt = task_prompt_with_id
             if relevant_memories:
                 memory_context = memory.format_memories_for_prompt(relevant_memories)
-                enhanced_task_prompt = f"{task_prompt_with_id}\n\n{memory_context}"
+                task_prompt = f"{task_prompt}\n\n{memory_context}"
 
             # Execute task with the agent
             self._color_log(f"🚀 Executing task: {task_prompt[:100]}...", Color.cyan)
 
             task = Task(
                 id=str(uuid.uuid4().hex),
-                input=enhanced_task_prompt,
+                input=task_prompt,
                 agent=agent,
                 conf=TaskConfig(max_steps=max_steps),
             )
@@ -457,8 +467,8 @@ class PDFAgentCollection(ActionCollection):
             )
 
         except Exception as e:
-            error_msg = f"Failed to create and execute PDF agent: {str(e)}"
-            self.logger.error(f"PDF agent error: {traceback.format_exc()}")
+            error_msg = f"Failed to create and execute file agent: {str(e)}"
+            self.logger.error(f"File agent error: {traceback.format_exc()}")
             self._color_log(f"❌ {error_msg}", Color.red)
 
             return ActionResponse(
@@ -467,21 +477,22 @@ class PDFAgentCollection(ActionCollection):
                 metadata={"error_type": "agent_creation_failed", "error_details": str(e)},
             )
 
-    def mcp_use_existing_pdf_agent(
+    def mcp_use_existing_file_agent(
         self,
-        agent_id: str = Field(description="The ID of an existing PDF agent to use"),
-        task_prompt: str = Field(description="The task or query for the PDF agent to process"),
+        agent_id: str = Field(description="The ID of an existing file agent to use"),
+        task_prompt: str = Field(description="The task or query for the file agent to process"),
+        file_paths: str = Field(default="", description="Comma-separated local file paths (e.g., 'file1.pdf, image.png')"),
         max_steps: int = Field(default=12, description="Maximum steps for agent execution"),
     ) -> ActionResponse:
         """
-        Use an existing PDF agent to execute a task.
+        Use an existing file agent to execute a task.
 
-        This method reuses a previously created PDF agent, maintaining its
-        configuration, memory, and state across multiple tasks.
+        This method reuses a previously created file agent, maintaining its configuration, memory, and state across multiple tasks.
 
         Args:
-            agent_id: ID of the existing PDF agent
+            agent_id: ID of the existing file agent
             task_prompt: The task or query to process
+            file_paths: Comma-separated local file paths (e.g., 'file1.pdf, image.png')
             max_steps: Maximum execution steps
 
         Returns:
@@ -492,6 +503,8 @@ class PDFAgentCollection(ActionCollection):
             agent_id = agent_id.default
         if isinstance(task_prompt, FieldInfo):
             task_prompt = task_prompt.default
+        if isinstance(file_paths, FieldInfo):
+            file_paths = file_paths.default
         if isinstance(max_steps, FieldInfo):
             max_steps = max_steps.default
 
@@ -516,7 +529,7 @@ class PDFAgentCollection(ActionCollection):
                     metadata={"error_type": "agent_data_corrupted"},
                 )
 
-            self._color_log(f"🔄 Using existing PDF agent: {metadata.name} ({agent_id})", Color.cyan)
+            self._color_log(f"🔄 Using existing file agent: {metadata.name} ({agent_id})", Color.cyan)
 
             # Retrieve relevant memories from past tasks
             memory = get_agent_memory()
@@ -532,21 +545,25 @@ class PDFAgentCollection(ActionCollection):
                     Color.blue
                 )
             
-            # Add agent ID to task prompt
-            task_prompt_with_id = f"[Agent ID: {metadata.agent_id}]\n\n{task_prompt}"
+            # Add file paths to task prompt if provided
+            if file_paths:
+                self._color_log(f"📁 File paths specified: {file_paths}", Color.blue)
+                task_prompt = f"{task_prompt}\n\n**Files to process:** {file_paths}"
             
+            # Add agent ID to task prompt
+            task_prompt = f"{task_prompt}\n\n[Agent ID: {metadata.agent_id}]"
+
             # Enhance task prompt with past experiences
-            enhanced_task_prompt = task_prompt_with_id
             if relevant_memories:
                 memory_context = memory.format_memories_for_prompt(relevant_memories)
-                enhanced_task_prompt = f"{task_prompt_with_id}\n\n{memory_context}"
+                task_prompt = f"{task_prompt}\n\n{memory_context}"
 
             # Execute task with the agent
             self._color_log(f"🚀 Executing task: {task_prompt[:100]}...", Color.cyan)
 
             task = Task(
                 id=str(uuid.uuid4().hex),
-                input=enhanced_task_prompt,
+                input=task_prompt,
                 agent=agent,
                 conf=TaskConfig(max_steps=max_steps),
             )
@@ -577,7 +594,7 @@ class PDFAgentCollection(ActionCollection):
 
         except Exception as e:
             error_msg = f"Failed to execute task with existing agent: {str(e)}"
-            self.logger.error(f"PDF agent error: {traceback.format_exc()}")
+            self.logger.error(f"File agent error: {traceback.format_exc()}")
             self._color_log(f"❌ {error_msg}", Color.red)
 
             return ActionResponse(
@@ -592,14 +609,14 @@ if __name__ == "__main__":
 
     # Default arguments for testing
     args = ActionArguments(
-        name="pdf_agent_service",
+        name="file_agent_service",
         transport="stdio",
         workspace=os.getenv("AWORLD_WORKSPACE", "~"),
     )
 
-    # Initialize and run the PDF service
+    # Initialize and run the file service
     try:
-        service = PDFAgentCollection(args)
+        service = FileAgentCollection(args)
         service.run()
     except Exception as e:
         print(f"An error occurred: {e}: {traceback.format_exc()}")
