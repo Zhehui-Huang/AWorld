@@ -357,7 +357,6 @@ class FileAgentCollection(ActionCollection):
             default="File agent specialized in PDF and image processing",
             description="Description of the file agent's purpose",
         ),
-        max_steps: int = Field(default=12, description="Maximum steps for agent execution"),
     ) -> ActionResponse:
         """
         Create a new file agent and execute the given task.
@@ -369,15 +368,11 @@ class FileAgentCollection(ActionCollection):
         4. Dedicated memory module
         5. MCP tools for PDF and image processing
 
-        The agent will autonomously handle its thinking, planning, and tool calls
-        to complete the task.
-
         Args:
             task_prompt: The task or query to process
             file_paths: Comma-separated local file paths (e.g., 'file1.pdf, image.png')
             name: Name for the agent
             description: Description of agent's purpose
-            max_steps: Maximum execution steps
 
         Returns:
             ActionResponse with execution results and agent metadata
@@ -391,8 +386,9 @@ class FileAgentCollection(ActionCollection):
             name = name.default
         if isinstance(description, FieldInfo):
             description = description.default
-        if isinstance(max_steps, FieldInfo):
-            max_steps = max_steps.default
+        
+        # Load max_steps from environment variable
+        max_steps = int(os.getenv("FILE_AGENT_MAX_STEPS", "50"))
 
         try:
             self._color_log(f"🤖 Creating new file agent: {name}", Color.cyan)
@@ -482,7 +478,6 @@ class FileAgentCollection(ActionCollection):
         agent_id: str = Field(description="The ID of an existing file agent to use"),
         task_prompt: str = Field(description="The task or query for the file agent to process"),
         file_paths: str = Field(default="", description="Comma-separated local file paths (e.g., 'file1.pdf, image.png')"),
-        max_steps: int = Field(default=12, description="Maximum steps for agent execution"),
     ) -> ActionResponse:
         """
         Use an existing file agent to execute a task.
@@ -493,7 +488,6 @@ class FileAgentCollection(ActionCollection):
             agent_id: ID of the existing file agent
             task_prompt: The task or query to process
             file_paths: Comma-separated local file paths (e.g., 'file1.pdf, image.png')
-            max_steps: Maximum execution steps
 
         Returns:
             ActionResponse with execution results and agent metadata
@@ -505,8 +499,9 @@ class FileAgentCollection(ActionCollection):
             task_prompt = task_prompt.default
         if isinstance(file_paths, FieldInfo):
             file_paths = file_paths.default
-        if isinstance(max_steps, FieldInfo):
-            max_steps = max_steps.default
+        
+        # Load max_steps from environment variable
+        max_steps = int(os.getenv("FILE_AGENT_MAX_STEPS", "50"))
 
         try:
             # Check if agent exists

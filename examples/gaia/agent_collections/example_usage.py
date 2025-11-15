@@ -211,79 +211,10 @@ def example_1_hierarchical_paper_analysis():
 
     print("\n" + "=" * 100)
 
-def main():
-    """Main entry point - run V2 orchestration examples."""
-    print("""
-╔════════════════════════════════════════════════════════════════════════════╗
-║                                                                            ║
-║         Hierarchical Multi-Agent Orchestration Examples (V2)              ║
-║                                                                            ║
-║  Demonstrates recursive orchestrators that create sub-orchestrators       ║
-║  for complex multi-agent workflows with automatic task decomposition      ║
-║                                                                            ║
-║  Key Features:                                                            ║
-║    • Multi-level hierarchical orchestration                               ║
-║    • Recursive orchestrator agents                                        ║
-║    • Automatic sub-orchestrator creation                                  ║
-║    • Parallel execution of independent sub-orchestrators                  ║
-║    • Smart decision-making (when to use sub-orchestrators)                ║
-║                                                                            ║
-╚════════════════════════════════════════════════════════════════════════════╝
-""")
-
-    examples = {
-        "1": ("Hierarchical Multi-Agent Task (AI Regulation Paper)", example_1_hierarchical_paper_analysis),
-        # "2": ("Parallel Sub-Orchestrators (Two Papers)", example_2_parallel_orchestrators),
-        # "3": ("Direct Agent Management (Simple Task)", example_3_direct_vs_hierarchical),
-    }
-
-    print("Available Examples:")
-    for key, (description, _) in examples.items():
-        print(f"  {key}. {description}")
-    print("  a. Run all examples")
-    print("  q. Quit")
-
-    while True:
-        print("\n" + "-" * 80)
-        choice = input("\nSelect an example (1-3, 'a' for all, 'q' to quit): ").strip().lower()
-
-        if choice == 'q':
-            print("\n👋 Goodbye!")
-            break
-        elif choice == 'a':
-            print("\n🚀 Running all examples...\n")
-            for _, example_func in examples.values():
-                try:
-                    example_func()
-                except KeyboardInterrupt:
-                    print("\n\n⚠️ Interrupted by user")
-                    break
-                except Exception as e:
-                    print(f"\n❌ Error running example: {e}")
-                    import traceback
-
-                    traceback.print_exc()
-            break
-        elif choice in examples:
-            _, example_func = examples[choice]
-            try:
-                example_func()
-            except KeyboardInterrupt:
-                print("\n\n⚠️ Interrupted by user")
-                break
-            except Exception as e:
-                print(f"\n❌ Error running example: {e}")
-                import traceback
-
-                traceback.print_exc()
-        else:
-            print("❌ Invalid choice. Please select 1-3, 'a', or 'q'")
-
 
 if __name__ == "__main__":
     try:
-        main()
+        example_1_hierarchical_paper_analysis()
     except KeyboardInterrupt:
         print("\n\n👋 Goodbye!")
         sys.exit(0)
-

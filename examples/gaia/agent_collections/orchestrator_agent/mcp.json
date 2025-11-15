@@ -62,6 +62,19 @@
         "env": {
         },
         "client_session_timeout_seconds": 9999.0
+      },
+      "think": {
+        "command": "python",
+        "args": [
+          "-m",
+          "examples.gaia.agent_collections.think"
+        ],
+        "env": {
+          "THINK_LLM_MODEL_NAME": "${THINK_LLM_MODEL_NAME}",
+          "THINK_LLM_API_KEY": "${THINK_LLM_API_KEY}",
+          "THINK_LLM_BASE_URL": "${THINK_LLM_BASE_URL}"
+        },
+        "client_session_timeout_seconds": 9999.0
       }
     }
   }

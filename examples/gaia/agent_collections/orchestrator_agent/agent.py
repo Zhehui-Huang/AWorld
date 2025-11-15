@@ -205,55 +205,24 @@ class OrchestratorAgentCollection(ActionCollection):
             default="Orchestrator agent for multi-agent coordination",
             description="Description of the orchestrator's purpose",
         ),
-        available_agents: List[str] = Field(
-            default=["search_agent", "file_agent", "orchestrator_agent"],
-            description="List of agent types this orchestrator can use (e.g., ['search_agent', 'file_agent'])",
-        ),
-        max_steps: int = Field(default=50, description="Maximum steps for orchestrator execution"),
-        parent_orchestrator_id: str = Field(
-            default=None, description="ID of parent orchestrator (for tracking hierarchy)"
-        ),
     ) -> ActionResponse:
         """
-        Create a new orchestrator agent and execute the given task.
+        Create a new orchestrator agent to coordinate multiple specialized agents.
 
-        This orchestrator can coordinate multiple specialized agents and even create
-        sub-orchestrators for complex workflows requiring nested coordination.
-
-        Key Features:
-        1. Dynamic agent selection from available_agents list
-        2. Recursive orchestration (can create sub-orchestrators)
-        3. Parallel and sequential execution patterns
-        4. Context and memory preservation across agent calls
-        5. Hierarchical task decomposition
-
-        LLM configuration is loaded from environment variables:
-        - LLM_PROVIDER (default: "openai")
-        - LLM_MODEL_NAME (default: "gpt-4o")
-        - LLM_BASE_URL (optional)
-        - LLM_API_KEY (required)
-        - LLM_TEMPERATURE (default: "0.0")
+        This method creates a orchestrator agent with:
+        1. Unique agent ID
+        2. Custom name and description
+        3. Independent LLM instance (configured via environment variables)
+        4. Dedicated memory module
+        5. MCP tools (create new orchestrator agents and specialized agents; use existing orchestrator agents and specialized agents)
 
         Args:
             task_prompt: The task to orchestrate (provide complete context)
             name: Name for the orchestrator
             description: Description of orchestrator's purpose
-            available_agents: List of agent types this orchestrator can use
-            max_steps: Maximum execution steps
-            parent_orchestrator_id: ID of parent orchestrator (for tracking)
 
         Returns:
             ActionResponse with execution results and orchestrator metadata
-
-        Example:
-            ```
-            orchestrator_agent.mcp_create_orchestrator_agent(
-                task_prompt="Find paper X from 2022, extract figure with 3 axes, return axis labels",
-                name="paper_analyzer",
-                available_agents=["search_agent", "file_agent"],
-                max_steps=20
-            )
-            ```
         """
         # Handle FieldInfo objects
         if isinstance(task_prompt, FieldInfo):
@@ -262,12 +231,12 @@ class OrchestratorAgentCollection(ActionCollection):
             name = name.default
         if isinstance(description, FieldInfo):
             description = description.default
-        if isinstance(available_agents, FieldInfo):
-            available_agents = available_agents.default
-        if isinstance(max_steps, FieldInfo):
-            max_steps = max_steps.default
-        if isinstance(parent_orchestrator_id, FieldInfo):
-            parent_orchestrator_id = parent_orchestrator_id.default
+        
+        # Use default values
+        available_agents = ["search_agent", "file_agent", "orchestrator_agent"]
+        # Load max_steps from environment variable
+        max_steps = int(os.getenv("ORCHESTRATOR_AGENT_MAX_STEPS", "50"))
+        parent_orchestrator_id = None
 
         try:
             indent = "  " * self.orchestration_level
@@ -360,18 +329,15 @@ class OrchestratorAgentCollection(ActionCollection):
         self,
         agent_id: str = Field(description="The ID of an existing orchestrator to use"),
         task_prompt: str = Field(description="The task for the orchestrator to coordinate"),
-        max_steps: int = Field(default=50, description="Maximum steps for execution"),
     ) -> ActionResponse:
         """
         Use an existing orchestrator agent to execute a task.
 
-        This method reuses a previously created orchestrator, maintaining its
-        configuration, available agents, and state across multiple tasks.
+        This method reuses a previously created orchestrator, maintaining its configuration, available agents, and state across multiple tasks.
 
         Args:
             agent_id: ID of the existing orchestrator
             task_prompt: The task to orchestrate
-            max_steps: Maximum execution steps
 
         Returns:
             ActionResponse with execution results and orchestrator metadata
@@ -381,8 +347,9 @@ class OrchestratorAgentCollection(ActionCollection):
             agent_id = agent_id.default
         if isinstance(task_prompt, FieldInfo):
             task_prompt = task_prompt.default
-        if isinstance(max_steps, FieldInfo):
-            max_steps = max_steps.default
+        
+        # Load max_steps from environment variable
+        max_steps = int(os.getenv("ORCHESTRATOR_AGENT_MAX_STEPS", "50"))
 
         try:
             # Check if orchestrator exists
