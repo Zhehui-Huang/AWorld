@@ -2,25 +2,23 @@
 Download MCP Server
 
 This module provides MCP server functionality for downloading files from URLs.
-It supports HTTP/HTTPS downloads with configurable options and returns LLM-friendly formatted results.
+It supports HTTP/HTTPS downloads and returns JSON formatted results.
 
 Key features:
 - Download files from HTTP/HTTPS URLs
-- Configurable timeout and overwrite options
+- Always overwrites existing files
 - Custom headers support for authentication
-- LLM-optimized output formatting
+- JSON formatted output
 - Comprehensive error handling and logging
 - Path validation and directory creation
 
 Main functions:
-- mcp_download_file: Download files from URLs with comprehensive options
+- mcp_download_file: Download files from URLs
 """
 
 import json
 import shutil
-import time
 import traceback
-from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -39,9 +37,6 @@ class DownloadResult(BaseModel):
     url: str
     file_path: str
     success: bool
-    # file_size: int | None = None
-    # duration: str
-    # timestamp: str
     error_message: str | None = None
 
 
@@ -50,25 +45,18 @@ class DownloadMetadata(BaseModel):
 
     url: str
     output_path: str
-    # timeout_seconds: int
     overwrite_enabled: bool
-    # execution_time: float | None = None
-    # file_size_bytes: int | None = None
-    content_type: str | None = None
-    status_code: int | None = None
     error_type: str | None = None
-    headers_used: bool = False
 
 
 class DownloadCollection(ActionCollection):
-    """MCP service for file download operations with comprehensive controls.
+    """MCP service for file download operations.
 
     Provides secure file download capabilities including:
     - HTTP/HTTPS URL support
-    - Configurable timeout controls
-    - Custom headers for authentication
+    - Always overwrites existing files
     - Path validation and directory creation
-    - LLM-friendly result formatting
+    - JSON formatted output
     - Error handling and logging
     """
 
@@ -76,7 +64,7 @@ class DownloadCollection(ActionCollection):
         super().__init__(arguments)
 
         # Configuration
-        self.default_timeout = 60 * 3  # 3 minutes timeout
+        self.timeout = 1000
         self.max_file_size = 1024 * 1024 * 1024  # 1GB limit
         self.supported_schemes = {"http", "https"}
 
@@ -137,77 +125,23 @@ class DownloadCollection(ActionCollection):
 
         return path.resolve()
 
-    def _format_download_output(self, result: DownloadResult, output_format: str = "markdown") -> str:
-        """Format download results for LLM consumption.
-
-        Args:
-            result: Download execution result
-            output_format: Format type ('markdown', 'json', 'text')
-
-        Returns:
-            Formatted string suitable for LLM consumption
-        """
-        if output_format == "json":
-            return json.dumps(result.model_dump(), indent=2)
-
-        elif output_format == "text":
-            output_parts = [
-                f"URL: {result.url}",
-                f"File Path: {result.file_path}",
-                f"Status: {'SUCCESS' if result.success else 'FAILED'}",
-                # f"Duration: {result.duration}",
-                # f"Timestamp: {result.timestamp}",
-            ]
-
-            if result.file_size is not None:
-                output_parts.append(f"File Size: {result.file_size:,} bytes")
-
-            if result.error_message:
-                output_parts.append(f"Error: {result.error_message}")
-
-            return "\n".join(output_parts)
-
-        else:  # markdown (default)
-            status_emoji = "✅" if result.success else "❌"
-
-            output_parts = [
-                f"# File Download {status_emoji}",
-                f"**URL:** `{result.url}`",
-                f"**File Path:** `{result.file_path}`",
-                f"**Status:** {'SUCCESS' if result.success else 'FAILED'}",
-                # f"**Duration:** {result.duration}",
-                # f"**Timestamp:** {result.timestamp}",
-            ]
-
-            if result.file_size is not None:
-                size_mb = result.file_size / (1024 * 1024)
-                output_parts.append(f"**File Size:** {result.file_size:,} bytes ({size_mb:.2f} MB)")
-
-            if result.error_message:
-                output_parts.extend(["\n## Error Details", f"```\n{result.error_message}\n```"])
-
-            return "\n".join(output_parts)
-
     async def _download_file_async(
-        self, url: str, output_path: Path, timeout: int, headers: dict[str, str] | None
+        self, url: str, output_path: Path, headers: dict[str, str] | None
     ) -> DownloadResult:
         """Download file asynchronously with comprehensive error handling.
 
         Args:
             url: URL to download from
             output_path: Local path to save file
-            timeout: Request timeout in seconds
             headers: Optional custom headers
 
         Returns:
             DownloadResult with execution details
         """
-        start_time = datetime.now()
-
         try:
             self._color_log(f"📥 Starting download: {url}", Color.cyan)
 
-            with requests.get(url, stream=True, timeout=timeout, headers=headers) as response:
+            with requests.get(url, stream=True, timeout=self.timeout, headers=headers) as response:
                 response.raise_for_status()
 
                 # Check content length if available
@@ -220,35 +154,26 @@ class DownloadCollection(ActionCollection):
                     shutil.copyfileobj(response.raw, f)
 
                 file_size = output_path.stat().st_size
-                duration = str(datetime.now() - start_time)
-
                 self._color_log(f"✅ Download completed: {file_size:,} bytes", Color.green)
 
                 return DownloadResult(
                     url=url,
                     file_path=str(output_path),
                     success=True,
-                    file_size=file_size,
-                    duration=duration,
-                    timestamp=start_time.isoformat(),
                 )
 
         except requests.exceptions.Timeout:
-            duration = str(datetime.now() - start_time)
-            error_msg = f"Download timed out after {timeout} seconds"
+            error_msg = f"Download timed out after {self.timeout} seconds"
             self._color_log(f"⏰ {error_msg}", Color.red)
 
             return DownloadResult(
                 url=url,
                 file_path=str(output_path),
                 success=False,
-                duration=duration,
-                timestamp=start_time.isoformat(),
                 error_message=error_msg,
             )
 
         except requests.exceptions.RequestException as e:
-            duration = str(datetime.now() - start_time)
             error_msg = f"Request failed: {str(e)}"
             self._color_log(f"❌ {error_msg}", Color.red)
 
@@ -256,13 +181,10 @@ class DownloadCollection(ActionCollection):
                 url=url,
                 file_path=str(output_path),
                 success=False,
-                duration=duration,
-                timestamp=start_time.isoformat(),
                 error_message=error_msg,
             )
 
         except Exception as e:
-            duration = str(datetime.now() - start_time)
             error_msg = f"Unexpected error: {str(e)}"
             self._color_log(f"💥 {error_msg}", Color.red)
 
@@ -270,8 +192,6 @@ class DownloadCollection(ActionCollection):
                 url=url,
                 file_path=str(output_path),
                 success=False,
-                duration=duration,
-                timestamp=start_time.isoformat(),
                 error_message=error_msg,
             )
 
@@ -281,40 +201,26 @@ class DownloadCollection(ActionCollection):
         output_file_path: str = Field(
             description="Local path where the file should be saved (absolute or relative to workspace)"
         ),
-        overwrite: bool = Field(default=False, description="Whether to overwrite existing files (default: False)"),
-        timeout: int = Field(default=60, description="Download timeout in seconds (default: 60)"),
-        output_format: str = Field(default="markdown", description="Output format: 'markdown', 'json', or 'text'"),
     ) -> ActionResponse:
-        """Download a file from a URL with comprehensive options and controls.
+        """Download a file from a URL.
 
         This tool provides secure file download capabilities with:
         - HTTP/HTTPS URL support
-        - Configurable timeout controls
         - Path validation and directory creation
-        - File size limits and safety checks
-        - LLM-optimized result formatting
+        - JSON formatted output
 
         Args:
             url: The HTTP/HTTPS URL of the file to download
             output_file_path: Local path to save the downloaded file
-            overwrite: Whether to overwrite existing files
-            timeout: Maximum download time in seconds
-            output_format: Format for the response output
 
         Returns:
-            ActionResponse with download results and metadata
+            ActionResponse with download results and metadata in JSON format
         """
         # Handle FieldInfo objects
         if isinstance(url, FieldInfo):
             url = url.default
         if isinstance(output_file_path, FieldInfo):
             output_file_path = output_file_path.default
-        if isinstance(overwrite, FieldInfo):
-            overwrite = overwrite.default
-        if isinstance(timeout, FieldInfo):
-            timeout = timeout.default
-        if isinstance(output_format, FieldInfo):
-            output_format = output_format.default
 
         try:
             # Validate URL
@@ -326,8 +232,7 @@ class DownloadCollection(ActionCollection):
                     metadata=DownloadMetadata(
                         url=url,
                         output_path=output_file_path,
-                        timeout_seconds=timeout,
-                        overwrite_enabled=overwrite,
+                        overwrite_enabled=True,
                         error_type="invalid_url",
                     ).model_dump(),
                 )
@@ -335,39 +240,17 @@ class DownloadCollection(ActionCollection):
             # Resolve output path
             output_path = self._resolve_output_path(output_file_path)
 
-            # Check if file exists and overwrite setting
-            if output_path.exists() and not overwrite:
-                existing_size = output_path.stat().st_size
-                return ActionResponse(
-                    success=False,
-                    message=f"File already exists at {output_path} ({existing_size:,} bytes) and overwrite is disabled",
-                    metadata=DownloadMetadata(
-                        url=url,
-                        output_path=str(output_path),
-                        timeout_seconds=timeout,
-                        overwrite_enabled=overwrite,
-                        file_size_bytes=existing_size,
-                        error_type="file_exists",
-                    ).model_dump(),
-                )
+            # Perform download (always overwrite)
+            result = await self._download_file_async(url, output_path, self.headers)
 
-            # Perform download
-            start_time = time.time()
-            result = await self._download_file_async(url, output_path, timeout, self.headers)
-            execution_time = time.time() - start_time
-
-            # Format output
-            formatted_output = self._format_download_output(result, output_format)
+            # Format output as JSON
+            formatted_output = json.dumps(result.model_dump(), indent=2)
 
             # Create metadata
             metadata = DownloadMetadata(
                 url=url,
                 output_path=str(output_path),
-                # timeout_seconds=timeout,
-                overwrite_enabled=overwrite,
-                # execution_time=execution_time,
-                # file_size_bytes=result.file_size,
-                headers_used=self.headers is not None,
+                overwrite_enabled=True,
             )
 
             if not result.success:
@@ -389,11 +272,11 @@ class DownloadCollection(ActionCollection):
                 metadata=DownloadMetadata(
                     url=url,
                     output_path=output_file_path,
-                    timeout_seconds=timeout,
-                    overwrite_enabled=overwrite,
+                    overwrite_enabled=True,
                     error_type="internal_error",
                 ).model_dump(),
             )
+
 
 # Default arguments for testing
 if __name__ == "__main__":

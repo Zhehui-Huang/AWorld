@@ -46,6 +46,7 @@ from aworld.runner import Runners
 from examples.gaia.agent_collections.file_agent.prompt import system_prompt
 from examples.gaia.mcp_collections.base import ActionArguments, ActionCollection, ActionResponse
 from examples.gaia.agent_collections.shared_memory import get_agent_memory
+from examples.gaia.agent_collections.agent_memory_utils import save_task_memory_with_analysis
 
 
 class FileAgent(Agent):
@@ -364,7 +365,7 @@ class FileAgentCollection(ActionCollection):
         This method creates a file agent with:
         1. Unique agent ID
         2. Custom name and description
-        3. Independent LLM instance (configured via environment variables)
+        3. Independent LLM instance
         4. Dedicated memory module
         5. MCP tools for PDF and image processing
 
@@ -448,8 +449,20 @@ class FileAgentCollection(ActionCollection):
                 answer = None
                 self._color_log(f"⚠️ Task completed with no answer", Color.yellow)
 
+            # Extract artifacts and reflection, then save task memory
+            save_task_memory_with_analysis(
+                memory=memory,
+                agent=agent,
+                task_id=task.id,
+                agent_id=metadata.agent_id,
+                agent_type="file_agent",
+                task_prompt=task_prompt,
+                answer=answer,
+                logger_func=lambda msg, level: self._color_log(msg, Color.blue, level)
+            )
+
             # Format response
-            formatted_message = f"""**Answer:** {answer if answer else "No answer generated"}"""
+            formatted_message = answer
 
             return ActionResponse(
                 success=True,
@@ -573,8 +586,20 @@ class FileAgentCollection(ActionCollection):
                 answer = None
                 self._color_log(f"⚠️ Task completed with no answer", Color.yellow)
 
+            # Extract artifacts and reflection, then save task memory
+            save_task_memory_with_analysis(
+                memory=memory,
+                agent=agent,
+                task_id=task.id,
+                agent_id=metadata.agent_id,
+                agent_type="file_agent",
+                task_prompt=task_prompt,
+                answer=answer,
+                logger_func=lambda msg, level: self._color_log(msg, Color.blue, level)
+            )
+
             # Format response
-            formatted_message = f"""**Answer:** {answer if answer else "No answer generated"}"""
+            formatted_message = answer
 
             return ActionResponse(
                 success=True,

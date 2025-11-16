@@ -60,7 +60,7 @@ def example_1_basic_pdf_processing():
         name="main_agent",
         system_prompt=system_prompt,
         mcp_config=mcp_config,
-        mcp_servers=["pdf", "image", "memory_tools"],
+        mcp_servers=["pdf", "image"],
     )
 
     # Get absolute path to the sample PDF
