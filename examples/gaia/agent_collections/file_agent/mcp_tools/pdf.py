@@ -549,11 +549,48 @@ class DocumentExtractionCollection(ActionCollection):
                 metadata={"error_type": "metadata_error"}
             )
 
+    def _normalize_page_range(self, page_range: str | None) -> str:
+        """Normalize page range format to handle edge cases.
+        
+        Converts ranges like "0-0" to "0", "1-1" to "1", etc.
+        Also handles comma-separated ranges like "0-0,2-2,5" -> "0,2,5"
+        
+        Args:
+            page_range: Raw page range string (e.g., "0-0", "1-1", "0-2,5-5,7")
+            
+        Returns:
+            Normalized page range string
+        """
+        if not page_range:
+            return "As documented above"
+        
+        try:
+            normalized_parts = []
+            for part in page_range.split(","):
+                part = part.strip()
+                if "-" in part:
+                    start, end = part.split("-", 1)
+                    start, end = start.strip(), end.strip()
+                    # If start equals end, just use the single number
+                    if start == end:
+                        normalized_parts.append(start)
+                    else:
+                        normalized_parts.append(f"{start}-{end}")
+                else:
+                    normalized_parts.append(part)
+            
+            result = ",".join(normalized_parts)
+            return result if result else "As documented above"
+        except Exception as e:
+            # If parsing fails, return original value
+            self.logger.warning(f"Failed to normalize page range '{page_range}': {str(e)}")
+            return page_range if page_range else "As documented above"
+
     def mcp_summarize_and_reset_memory(
         self,
         summary: str = Field(description="A comprehensive summary of all findings from the pages processed so far"),
         reason: str = Field(description="Reason for needing to continue processing more pages"),
-        processed_page_range: str | None = Field(default=None, description="Page range of all processed pages so far (e.g., '0-2')"),
+        processed_page_range: str | None = Field(default=None, description="Page range of all processed pages so far (e.g., '0', '0-2')"),
         total_pages: int | None = Field(default=None, description="Total number of pages in the document")
     ) -> ActionResponse:
         """Summarize current findings and reset conversation memory.
@@ -571,7 +608,7 @@ class DocumentExtractionCollection(ActionCollection):
         Args:
             summary: A comprehensive summary of findings from pages processed so far
             reason: Explanation of why more pages need to be processed
-            processed_page_range: Page range of all processed pages so far (e.g., '0-2')
+            processed_page_range: Page range of all processed pages so far (e.g., '0', '0-2')
             total_pages: Total number of pages in the document
         Returns:
             ActionResponse confirming memory reset with summary
@@ -585,15 +622,20 @@ class DocumentExtractionCollection(ActionCollection):
                 processed_page_range = processed_page_range.default
             if isinstance(total_pages, FieldInfo):
                 total_pages = total_pages.default
+            
+            # Normalize the page range to handle edge cases like "0-0" -> "0"
+            normalized_page_range = self._normalize_page_range(processed_page_range)
+            
             self._color_log(f"📝 Summarizing and resetting memory", Color.cyan)
             self._color_log(f"Summary: {summary[:200]}...", Color.blue, "debug")
             self._color_log(f"Reason: {reason}", Color.blue, "debug")
-            self._color_log(f"Processed Page Range: {processed_page_range}", Color.blue, "debug")
+            self._color_log(f"Processed Page Range: {processed_page_range} -> {normalized_page_range}", Color.blue, "debug")
             self._color_log(f"Total Pages: {total_pages}", Color.blue, "debug")
-            # Format the summary message with explicit processed_page_range
+            
+            # Format the summary message with normalized processed_page_range
             formatted_summary = f"""## Progress Summary
 **Total Pages:** {total_pages}
-**Pages Processed So Far:** {processed_page_range if processed_page_range else "As documented above"}
+**Pages Processed So Far:** {normalized_page_range}
 **Findings:** {summary}
 **Reason to Continue:** {reason}
 
@@ -608,7 +650,7 @@ The summary above captures all important findings from previously processed page
                     "memory_reset": True,
                     # "summary": summary,
                     # "reason": reason,
-                    "processed_page_range": processed_page_range,
+                    "processed_page_range": normalized_page_range,
                     "action": "summarize_and_reset"
                 }
             )

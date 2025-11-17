@@ -6,10 +6,10 @@ Each agent instance has its own isolated memory space, ensuring privacy and inde
 
 Key features:
 - Memory storage with concrete information (files, URLs)
-- Reflection and learning (what worked, what failed, lessons learned)
+- Experience summary and learning from past tasks
 - Each agent instance has separate memory (no sharing, even between agents of same type)
 - Retrieval of relevant past experiences based on task similarity using semantic embeddings
-- Success/failure tracking with artifacts and reflection
+- Success/failure tracking with artifacts and experience summary
 - Semantic similarity-based retrieval with recency weighting
 - Integration with AWorld's embedding providers (OpenAI, Ollama, etc.)
 
@@ -18,12 +18,8 @@ Memory Entry Structure:
 - success: Whether the task succeeded or failed
 - artifacts: List of concrete resources (files, URLs, images) with full details
   Example: [{"type": "pdf", "name": "paper.pdf", "path": "/workspace/paper.pdf", "url": "https://..."}]
-- reflection: Agent's self-assessment and learning
-  Example: {
-      "what_worked": ["Using specific search terms", "Downloading from arxiv.org"],
-      "what_failed": ["Generic queries", "Paywalled journals"],
-      "lessons_learned": "Prioritize open-access sources for better success rate"
-  }
+- experience_summary: String summarizing key insights and learnings from the task execution
+  Example: "Successfully downloaded research paper using arxiv.org. Direct arxiv links work better than generic searches."
 """
 
 import hashlib
@@ -242,7 +238,7 @@ class AgentMemory:
         task_description: str,
         success: bool,
         artifacts: Optional[List[Dict[str, Any]]] = None,
-        reflection: Optional[Dict[str, Any]] = None
+        experience_summary: Optional[str] = None
     ) -> None:
         """Save a task memory entry for a specific agent instance.
         
@@ -253,12 +249,8 @@ class AgentMemory:
             success: Whether the task succeeded or failed
             artifacts: List of concrete resources used/created (files, URLs, etc.)
                       Example: [{"type": "pdf", "name": "Research Paper", "path": "paper.pdf", "url": "https://..."}]
-            reflection: Agent's learning and self-assessment
-                       Example: {
-                           "what_worked": ["Using specific search terms", "Downloading PDFs directly"],
-                           "what_failed": ["Generic search queries", "Accessing paywalled content"],
-                           "lessons_learned": "Always check if paper is open-access before attempting download"
-                       }
+            experience_summary: String summarizing key insights and learnings from task execution
+                              Example: "Successfully downloaded research paper using arxiv.org. Direct arxiv links work better than generic searches."
         """
         memories = self._load_memories(agent_id)
         
@@ -272,7 +264,7 @@ class AgentMemory:
             "task_description": task_description,
             "success": success,
             "artifacts": artifacts or [],
-            "reflection": reflection or {},
+            "experience_summary": experience_summary or "",
             "timestamp": datetime.now().isoformat()
         }
         
@@ -291,11 +283,11 @@ class AgentMemory:
         # Log the save
         status = "✓ SUCCESS" if success else "✗ FAILURE"
         artifacts_count = len(artifacts) if artifacts else 0
-        has_reflection = bool(reflection)
+        has_experience = bool(experience_summary)
         logger.info(
             f"💾 [{status}] Saved memory for agent {agent_id} ({agent_type}): "
             f"{task_description[:60]}... ({artifacts_count} artifacts, "
-            f"reflection: {has_reflection})"
+            f"experience_summary: {has_experience})"
         )
     
     def retrieve_relevant_memories(
@@ -387,7 +379,7 @@ class AgentMemory:
         formatted += "You have access to the following past experiences from similar tasks:\n\n"
         
         for idx, memory in enumerate(memories, 1):
-            status = "✓ SUCCESS" if memory["success"] else "✗ FAILURE"
+            status = "SUCCESS" if memory["success"] else "FAILURE"
             formatted += f"{idx}. [{status}] Task: {memory['task_description']}\n"
             
             # Add artifacts if available
@@ -406,32 +398,16 @@ class AgentMemory:
                 if len(artifacts) > 10:
                     formatted += f"      ... and {len(artifacts) - 10} more artifacts\n"
             
-            # Add reflection - This is crucial for learning
-            reflection = memory.get('reflection', {})
-            if reflection:
-                formatted += f"   Agent Reflection:\n"
-                
-                what_worked = reflection.get('what_worked', [])
-                if what_worked:
-                    formatted += f"      ✓ What Worked:\n"
-                    for item in what_worked[:5]:
-                        formatted += f"         - {item}\n"
-                
-                what_failed = reflection.get('what_failed', [])
-                if what_failed:
-                    formatted += f"      ✗ What Failed:\n"
-                    for item in what_failed[:5]:
-                        formatted += f"         - {item}\n"
-                
-                lessons_learned = reflection.get('lessons_learned', '')
-                if lessons_learned:
-                    formatted += f"      💡 Lesson: {lessons_learned}\n"
+            # Add experience summary - This is crucial for learning
+            experience_summary = memory.get('experience_summary', '')
+            if experience_summary:
+                formatted += f"   Experience Summary:\n"
+                formatted += f"      {experience_summary}\n"
             
             formatted += f"   Date: {memory['timestamp'][:10]}\n\n"
         
         formatted += "Use these past experiences to inform your approach:\n"
-        formatted += "- Learn from what worked and what failed\n"
-        formatted += "- Apply the lessons learned\n"
+        formatted += "- Learn from the experience summaries\n"
         formatted += "- Utilize successful artifacts and approaches\n"
         formatted += "=== END OF PAST EXPERIENCES ===\n"
         

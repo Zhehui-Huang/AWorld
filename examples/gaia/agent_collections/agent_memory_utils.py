@@ -2,11 +2,11 @@
 Agent Memory Utilities
 
 Shared utilities for extracting conversation history, analyzing it with LLM,
-and saving task memory with artifacts and reflection.
+and saving task memory with artifacts and experience summary.
 
 This module provides:
 - Conversation history extraction from agent memory
-- LLM-based analysis to extract artifacts and reflection
+- LLM-based analysis to extract artifacts and experience summary
 - Memory saving with structured data
 """
 
@@ -71,14 +71,14 @@ def extract_conversation_history(agent: Agent, task_id: str) -> str:
         return "Error extracting conversation history"
 
 
-def extract_artifacts_and_reflection(
+def extract_artifacts_and_experience_summary(
     agent: Agent,
     task_id: str,
     task_prompt: str,
     answer: Optional[str],
     agent_type: str = "agent"
-) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    """Extract artifacts and reflection from task execution by analyzing conversation history.
+) -> Tuple[List[Dict[str, Any]], str]:
+    """Extract artifacts and experience summary from task execution by analyzing conversation history.
     
     Args:
         agent: The agent instance that executed the task
@@ -88,14 +88,10 @@ def extract_artifacts_and_reflection(
         agent_type: Type of agent (for logging context)
         
     Returns:
-        Tuple of (artifacts, reflection)
+        Tuple of (artifacts, experience_summary)
     """
     artifacts = []
-    reflection = {
-        "what_worked": [],
-        "what_failed": [],
-        "lessons_learned": ""
-    }
+    experience_summary = ""
     
     try:
         # Get conversation history
@@ -114,22 +110,15 @@ Conversation History:
 Extract the following information in JSON format:
 
 1. artifacts: List of concrete resources used or created (files, URLs, images, datasets, etc.)
-   Each artifact should be a dict with keys like 'type', 'name', 'path', 'url'
-   Example: {{"type": "pdf", "name": "paper.pdf", "path": "/workspace/paper.pdf", "url": "https://arxiv.org/..."}}
+   Each artifact should be a dictionary with the following keys: 'type', 'name', 'path', and 'url'. The file name is typically different from the file path. If the file title is unavailable, use the file path as the name; otherwise, use the file title as the name.
+   Example: {{"type": "pdf", "name": "[FILE_NAME]", "path": "[FILE_PATH]", "url": "[FILE_URL]"}}
 
-2. reflection: Agent self-reflection with:
-   - what_worked: List of strategies/approaches that were successful
-   - what_failed: List of strategies/approaches that failed
-   - lessons_learned: String summarizing key insights and learnings
+2. experience_summary: String summarizing key insights and learnings.
 
 Return ONLY valid JSON with this structure:
 {{
     "artifacts": [...],
-    "reflection": {{
-        "what_worked": [...],
-        "what_failed": [...],
-        "lessons_learned": "..."
-    }}
+    "experience_summary": "..."
 }}"""
 
         # Call LLM to analyze
@@ -137,6 +126,7 @@ Return ONLY valid JSON with this structure:
         llm_model_name = os.getenv("LLM_MODEL_NAME", "gpt-4o")
         llm_base_url = os.getenv("LLM_BASE_URL")
         llm_api_key = os.getenv("LLM_API_KEY")
+        llm_temperature = float(os.getenv("LLM_TEMPERATURE", "0.7"))
         
         llm_config = AgentConfig(
             llm_provider=llm_provider,
@@ -148,7 +138,7 @@ Return ONLY valid JSON with this structure:
         response = call_llm_model(
             llm_model=get_llm_model(conf=llm_config),
             messages=[{"role": "user", "content": analysis_prompt}],
-            temperature=0.7
+            temperature=llm_temperature
         )
         
         # Parse LLM response
@@ -156,22 +146,20 @@ Return ONLY valid JSON with this structure:
             try:
                 analysis = json.loads(response.content)
                 artifacts = analysis.get("artifacts", [])
-                reflection = analysis.get("reflection", reflection)
+                experience_summary = analysis.get("experience_summary", experience_summary)
             except json.JSONDecodeError as e:
                 logger.warning(f"Failed to parse LLM response as JSON: {e}")
         
     except Exception as e:
         logger.warning(f"Error in LLM-based extraction for {agent_type}: {e}")
         logger.debug(traceback.format_exc())
-        # Fallback to basic reflection
+        # Fallback to basic experience summary
         if answer:
-            reflection["what_worked"].append("Successfully completed the task")
-            reflection["lessons_learned"] = "Task completed successfully"
+            experience_summary = "Successfully completed the task"
         else:
-            reflection["what_failed"].append("Failed to generate answer")
-            reflection["lessons_learned"] = "Need to improve task approach"
+            experience_summary = "Failed to generate answer"
     
-    return artifacts, reflection
+    return artifacts, experience_summary
 
 
 def save_task_memory_with_analysis(
@@ -184,7 +172,7 @@ def save_task_memory_with_analysis(
     answer: Optional[str],
     logger_func: Optional[callable] = None
 ) -> None:
-    """Extract artifacts/reflection and save task memory.
+    """Extract artifacts/experience summary and save task memory.
     
     Args:
         memory: The memory instance to save to
@@ -197,8 +185,8 @@ def save_task_memory_with_analysis(
         logger_func: Optional logging function for success/error messages
     """
     try:
-        # Extract artifacts and reflection
-        artifacts, reflection = extract_artifacts_and_reflection(
+        # Extract artifacts and experience summary
+        artifacts, experience_summary = extract_artifacts_and_experience_summary(
             agent=agent,
             task_id=task_id,
             task_prompt=task_prompt,
@@ -213,7 +201,7 @@ def save_task_memory_with_analysis(
             task_description=task_prompt,
             success=bool(answer),
             artifacts=artifacts,
-            reflection=reflection
+            experience_summary=experience_summary
         )
         
         if logger_func:

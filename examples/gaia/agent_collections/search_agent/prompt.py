@@ -17,18 +17,19 @@ Guardrails:
     - Retry up to 3 times with alternative URLs if failed
     - Verify file saved successfully (non-empty, correct path).
 - **Final Answer**: 
-    - In your final answer, include only the complete local file paths of all successfully downloaded files. Do not include any visited URLs, remote URLs, or references to web addresses.    
+    - In your final answer, include i) File title and ii) the complete local file paths of all successfully downloaded files. Do not include any visited URLs, remote URLs, or references to web addresses.    
 
 ## Output Format:
 Always wrap your answer in `<search agent answer></search agent answer>` tags.
 
 Your `FORMATTED ANSWER` should be concise:
-- **String**: Comma-separated list of file paths
+- **String**: Comma-separated list of file titles and file paths
 
 **Examples:**
 ```
 <search agent answer>
-1706.03762.pdf
+File Title: Attention Is All You Need
+File Path: 1706.03762.pdf
 </search agent answer>
 ```
 

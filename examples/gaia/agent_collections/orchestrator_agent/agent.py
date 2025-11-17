@@ -299,7 +299,7 @@ class OrchestratorAgentCollection(ActionCollection):
                 answer = None
                 self._color_log(f"{indent}⚠️ Orchestration completed with no answer", Color.yellow)
 
-            # Extract artifacts and reflection, then save task memory
+            # Extract artifacts and experience summary, then save task memory
             save_task_memory_with_analysis(
                 memory=memory,
                 agent=agent,
@@ -431,7 +431,7 @@ class OrchestratorAgentCollection(ActionCollection):
                 answer = None
                 self._color_log(f"{indent}⚠️ Orchestration completed with no answer", Color.yellow)
 
-            # Extract artifacts and reflection, then save task memory
+            # Extract artifacts and experience summary, then save task memory
             save_task_memory_with_analysis(
                 memory=memory,
                 agent=agent,
