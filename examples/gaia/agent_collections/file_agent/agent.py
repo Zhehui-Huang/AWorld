@@ -2,10 +2,11 @@
 File Agent MCP Server
 
 This module provides MCP server functionality for processing files including PDF documents and images.
-It supports PDF content extraction, text analysis, image processing, and returns LLM-friendly formatted results.
+It supports PDF content extraction with automatic LLM-based summarization, text analysis, image processing,
+and returns LLM-friendly formatted results.
 
 Key features:
-- Extract text content from PDF documents
+- Extract text content from PDF documents with automatic summarization for long content
 - Extract images and media from PDFs
 - Support for OCR when needed (documents and standalone images)
 - AI-powered image analysis using vision models
@@ -14,21 +15,20 @@ Key features:
 - Save extracted content to files
 
 Main functions:
-- mcp_create_file_agent: Create file agent
-- mcp_use_existing_file_agent: Use existing file agent
+- mcp_create_file_agent: Create file agent instance
+- mcp_use_existing_file_agent: Use existing file agent instance
 
-Tools available:
-- PDF tools: Extract text and images from PDF documents
-- Image tools: AI-powered image analysis, OCR, metadata extraction
+Tools available (via MCP):
+- PDF extraction: Text and image extraction with automatic token-based chunking and summarization
+- Image analysis: AI-powered image analysis, OCR, metadata extraction
 """
 
 import json
 import os
 import traceback
 import uuid
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, List, override
+from typing import Any, Dict, Optional, List
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
@@ -36,12 +36,8 @@ from pydantic.fields import FieldInfo
 
 from aworld.agents.llm_agent import Agent
 from aworld.config.conf import AgentConfig, TaskConfig
-from aworld.core.common import ActionResult, Observation
-from aworld.core.event.base import Message
-from aworld.core.context.base import Context
 from aworld.core.task import Task
 from aworld.logs.util import Color, logger
-from aworld.memory.models import MemoryHumanMessage, MessageMetadata
 from aworld.runner import Runners
 from examples.gaia.agent_collections.file_agent.prompt import system_prompt
 from examples.gaia.mcp_collections.base import ActionArguments, ActionCollection, ActionResponse
@@ -49,191 +45,6 @@ from examples.gaia.agent_collections.shared_memory import get_agent_memory
 from examples.gaia.agent_collections.agent_memory_utils import save_task_memory_with_analysis
 
 
-class FileAgent(Agent):
-    """Extended Agent with memory reset capability for file processing (PDFs and images)."""
-    
-    def __init__(self, *args, **kwargs):
-        """Initialize the FileAgent with original prompt tracking."""
-        super().__init__(*args, **kwargs)
-        self._original_user_prompt = None  # Store the original user prompt for summary merging
-
-    @override
-    async def _add_tool_result_to_memory(self, tool_call_id: str, tool_result: ActionResult, context: Context):
-        """Override to handle memory reset when summarization tool is called."""
-        # Check if this is a memory reset signal
-        should_reset = False
-        summary_message = None
-        
-        if isinstance(tool_result, ActionResult) and tool_result.content:
-            try:
-                # Parse the JSON content from MCP tool result
-                # The ActionResponse is serialized as JSON string wrapped in a list in tool_result.content
-                content = tool_result.content
-                
-                # First, parse the outer JSON (which is a list)
-                parsed_content = json.loads(content) if isinstance(content, str) else content
-                
-                # If it's a list, get the first element and parse it again
-                if isinstance(parsed_content, list) and len(parsed_content) > 0:
-                    response_data = json.loads(parsed_content[0]) if isinstance(parsed_content[0], str) else parsed_content[0]
-                else:
-                    response_data = parsed_content
-                
-                # Check if this is a memory reset action
-                if isinstance(response_data, dict):
-                    metadata = response_data.get("metadata", {})
-                    if metadata.get("memory_reset") and metadata.get("action") == "summarize_and_reset":
-                        should_reset = True
-                        # Extract the summary message from the ActionResponse
-                        summary_message = response_data.get("message", "")
-                        self._color_log("🔄 Memory reset signal detected - clearing conversation history", Color.cyan)
-                        self._color_log(f"📄 Summary length: {len(summary_message)} chars", Color.cyan, "debug")
-            except (json.JSONDecodeError, TypeError, AttributeError) as e:
-                # If parsing fails, this is not a memory reset action
-                self._color_log(f"⚠️ Could not parse tool result as JSON: {e}", Color.yellow, "debug")
-                pass
-        
-        # If memory reset is needed, perform special handling
-        if should_reset:
-            self._color_log(f"🔍 Tool call ID for reset: {tool_call_id}", Color.yellow, "debug")
-            # Delete conversation history and add summary as user message
-            await self._reset_conversation_memory(context, summary_message)
-            # Don't add the tool result - we've already added the summary as user message
-            return
-        
-        # Normal case: add tool result to memory
-        await super()._add_tool_result_to_memory(tool_call_id, tool_result, context)
-
-    @override
-    async def async_messages_transform(
-        self,
-        image_urls: List[str] = None,
-        observation: Observation = None,
-        message: Message = None,
-        **kwargs
-    ) -> List[Dict[str, Any]]:
-        """Override to log messages being sent to LLM."""
-        messages = await super().async_messages_transform(
-            image_urls=image_urls,
-            observation=observation,
-            message=message,
-            **kwargs
-        )
-
-        self._color_log(f"🔍 Sending {len(messages)} messages to LLM:", Color.cyan, "debug")
-        for idx, msg in enumerate(messages):
-            role = msg.get("role", "unknown")
-            preview = str(msg.get("content", ""))[:100] or "[no content]"
-            tool_calls = msg.get("tool_calls", [])
-            tool_call_id = msg.get("tool_call_id")
-
-            info = []
-            if tool_calls:
-                info.append(f"tool_calls={len(tool_calls)}")
-            if tool_call_id:
-                info.append(f"tool_call_id={tool_call_id}")
-
-            extra = f" ({', '.join(info)})" if info else ""
-            self._color_log(f"  [{idx}] {role}{extra}: {preview}...", Color.cyan, "debug")
-
-        return messages
-
-    async def _reset_conversation_memory(self, context: Context, summary_message: str):
-        """Clear conversation memory except system prompt and initial task, then merge summary with user prompt."""
-        try:
-            session_id = context.get_task().session_id
-            task_id = context.get_task().id
-            user_id = context.get_task().user_id
-            
-            # Debug: Check current memory state before deletion
-            histories_before = self.memory.get_all(filters={
-                "agent_id": self.id(),
-                "session_id": session_id,
-                "task_id": task_id
-            })
-            self._color_log(f"📊 Memory before reset: {len(histories_before)} items", Color.yellow, "debug")
-            for idx, item in enumerate(histories_before):
-                self._color_log(
-                    f"  [{idx}] type={item.memory_type}, role={item.metadata.get('role', 'N/A')}, "
-                    f"deleted={item.deleted}, content_len={len(str(item.content)) if item.content else 0}",
-                    Color.yellow, "debug"
-                )
-            
-            # Find the initial user prompt (init type with role=user)
-            initial_user_prompt = None
-            for item in histories_before:
-                if (item.memory_type == "init" and 
-                    item.metadata.get('role') == 'user' and 
-                    not item.deleted):
-                    initial_user_prompt = item
-                    break
-            
-            if initial_user_prompt:
-                # Save the original user prompt if this is the first reset
-                if self._original_user_prompt is None:
-                    self._original_user_prompt = initial_user_prompt.content
-                    self._color_log(f"💾 Saved original user prompt ({len(str(self._original_user_prompt))} chars)", Color.blue, "debug")
-                
-                # Always merge summary with the ORIGINAL prompt (not the current content)
-                # This prevents accumulation: original + summary1 + summary2 + ...
-                merged_content = f"{self._original_user_prompt}\n\n{summary_message}"
-                
-                # Update the content
-                initial_user_prompt.content = merged_content
-                initial_user_prompt.updated_at = datetime.now().isoformat()
-                
-                # Save the updated memory item
-                self.memory.update(initial_user_prompt)
-                
-                self._color_log(f"📝 Summary merged with ORIGINAL user prompt (preventing accumulation)", Color.blue)
-                self._color_log(f"   Original prompt length: {len(str(self._original_user_prompt))} chars", Color.blue, "debug")
-                self._color_log(f"   New summary length: {len(summary_message)} chars", Color.blue, "debug")
-                self._color_log(f"   Merged total length: {len(merged_content)} chars", Color.blue, "debug")
-            else:
-                self._color_log("⚠️ Could not find initial user prompt to merge with", Color.yellow)
-            
-            # Delete all "message" type memories (conversation history)
-            # This preserves "init" type memories (system prompt and initial user prompt)
-            self.memory.delete_items(
-                message_types=["message"],
-                session_id=session_id,
-                task_id=task_id,
-                filters={
-                    "agent_id": self.id(),
-                }
-            )
-            
-            self._color_log("✅ Conversation memory cleared (kept system and user prompts)", Color.green)
-            
-            # Debug: Check memory state after deletion
-            histories_after = self.memory.get_all(filters={
-                "agent_id": self.id(),
-                "session_id": session_id,
-                "task_id": task_id
-            })
-            self._color_log(f"📊 Memory after reset: {len(histories_after)} items", Color.yellow, "debug")
-            for idx, item in enumerate(histories_after):
-                preview = str(item.content)[:100] if item.content else "[no content]"
-                self._color_log(
-                    f"  [{idx}] type={item.memory_type}, role={item.metadata.get('role', 'N/A')}, "
-                    f"deleted={item.deleted}, content_preview={preview}...",
-                    Color.yellow, "debug"
-                )
-            
-        except Exception as e:
-            self.logger.error(f"Failed to reset conversation memory: {str(e)}")
-            self._color_log(f"❌ Memory reset failed: {str(e)}", Color.red)
-    
-    def _color_log(self, message: str, color: Color, level: str = "info"):
-        """Helper method for colored logging."""
-        if level == "debug":
-            logger.debug(message, color=color)
-        elif level == "warning":
-            logger.warning(message, color=color)
-        elif level == "error":
-            logger.error(message, color=color)
-        else:
-            logger.info(message, color=color)
 
 
 class FileAgentMetadata(BaseModel):
@@ -334,8 +145,8 @@ class FileAgentCollection(ActionCollection):
         # Get available MCP servers
         available_servers = list(self.mcp_config.get("mcpServers", {}).keys())
 
-        # Create agent with MCP tools using custom FileAgent class
-        agent = FileAgent(
+        # Create agent with MCP tools
+        agent = Agent(
             conf=agent_config,
             name=name,
             agent_id=agent_id,
