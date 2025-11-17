@@ -51,6 +51,11 @@ from examples.gaia.agent_collections.agent_memory_utils import save_task_memory_
 
 class FileAgent(Agent):
     """Extended Agent with memory reset capability for file processing (PDFs and images)."""
+    
+    def __init__(self, *args, **kwargs):
+        """Initialize the FileAgent with original prompt tracking."""
+        super().__init__(*args, **kwargs)
+        self._original_user_prompt = None  # Store the original user prompt for summary merging
 
     @override
     async def _add_tool_result_to_memory(self, tool_call_id: str, tool_result: ActionResult, context: Context):
@@ -164,11 +169,14 @@ class FileAgent(Agent):
                     break
             
             if initial_user_prompt:
-                # Merge the summary with the initial user prompt
-                original_content = initial_user_prompt.content
+                # Save the original user prompt if this is the first reset
+                if self._original_user_prompt is None:
+                    self._original_user_prompt = initial_user_prompt.content
+                    self._color_log(f"💾 Saved original user prompt ({len(str(self._original_user_prompt))} chars)", Color.blue, "debug")
                 
-                # Format the merged content
-                merged_content = f"{original_content}\n\n{summary_message}"
+                # Always merge summary with the ORIGINAL prompt (not the current content)
+                # This prevents accumulation: original + summary1 + summary2 + ...
+                merged_content = f"{self._original_user_prompt}\n\n{summary_message}"
                 
                 # Update the content
                 initial_user_prompt.content = merged_content
@@ -177,10 +185,10 @@ class FileAgent(Agent):
                 # Save the updated memory item
                 self.memory.update(initial_user_prompt)
                 
-                self._color_log(f"📝 Summary merged with initial user prompt", Color.blue)
-                self._color_log(f"   Original length: {len(str(original_content))} chars", Color.blue, "debug")
-                self._color_log(f"   Summary length: {len(summary_message)} chars", Color.blue, "debug")
-                self._color_log(f"   New total length: {len(merged_content)} chars", Color.blue, "debug")
+                self._color_log(f"📝 Summary merged with ORIGINAL user prompt (preventing accumulation)", Color.blue)
+                self._color_log(f"   Original prompt length: {len(str(self._original_user_prompt))} chars", Color.blue, "debug")
+                self._color_log(f"   New summary length: {len(summary_message)} chars", Color.blue, "debug")
+                self._color_log(f"   Merged total length: {len(merged_content)} chars", Color.blue, "debug")
             else:
                 self._color_log("⚠️ Could not find initial user prompt to merge with", Color.yellow)
             

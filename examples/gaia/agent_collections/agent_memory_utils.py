@@ -47,20 +47,46 @@ def extract_conversation_history(agent: Agent, task_id: str) -> str:
                     role = msg.role if hasattr(msg, 'role') else 'unknown'
                     content = msg.content if hasattr(msg, 'content') else ''
                     
-                    # Extract tool calls if present
-                    if hasattr(msg, 'tool_calls') and msg.tool_calls:
-                        for tool_call in msg.tool_calls:
-                            if hasattr(tool_call, 'function_name'):
-                                tool_name = tool_call.function_name
-                                tool_args = tool_call.function_arguments if hasattr(tool_call, 'function_arguments') else ''
-                                conversation.append(f"[{role}] Tool call: {tool_name}")
-                                if tool_args:
-                                    # Do not truncate tool_args
-                                    conversation.append(f"  Arguments: {tool_args}")
+                    has_tool_calls = hasattr(msg, 'tool_calls') and msg.tool_calls
+                    has_content = bool(content)
                     
-                    # Add content if present, do not truncate
-                    if content:
-                        conversation.append(f"[{role}] {content}")
+                    # Always keep standard conversation roles (system, user, assistant, tool)
+                    # even if content is empty, since they might have tool calls or are part of the conversation flow
+                    # For other roles, only keep if they have content or tool calls
+                    standard_roles = ['system', 'user', 'assistant', 'tool']
+                    should_include = role in standard_roles or has_content or has_tool_calls
+                    
+                    if should_include:
+                        # Add role header
+                        conversation.append(f"[{role}]")
+                        
+                        # Add content first if present (reasoning before action)
+                        if has_content:
+                            conversation.append(content)
+                        
+                        # Then show tool calls (actions taken based on reasoning)
+                        if has_tool_calls:
+                            for tool_call in msg.tool_calls:
+                                try:
+                                    # Handle nested structure: tool_call.function.name and tool_call.function.arguments
+                                    if hasattr(tool_call, 'function') and tool_call.function:
+                                        tool_name = tool_call.function.get('name') if isinstance(tool_call.function, dict) else getattr(tool_call.function, 'name', None)
+                                        tool_args = tool_call.function.get('arguments') if isinstance(tool_call.function, dict) else getattr(tool_call.function, 'arguments', '')
+                                    # Handle flat structure: tool_call.function_name and tool_call.function_arguments
+                                    elif hasattr(tool_call, 'function_name'):
+                                        tool_name = tool_call.function_name
+                                        tool_args = tool_call.function_arguments if hasattr(tool_call, 'function_arguments') else ''
+                                    else:
+                                        continue
+                                    
+                                    if tool_name:
+                                        conversation.append(f"  Tool call: {tool_name}")
+                                        if tool_args:
+                                            # Do not truncate tool_args
+                                            conversation.append(f"  Arguments: {tool_args}")
+                                except Exception as e:
+                                    logger.debug(f"Error processing tool call: {e}")
+                                    continue
                 
                 return "\n".join(conversation)
         

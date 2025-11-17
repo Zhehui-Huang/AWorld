@@ -588,17 +588,17 @@ class DocumentExtractionCollection(ActionCollection):
 
     def mcp_summarize_and_reset_memory(
         self,
-        summary: str = Field(description="A comprehensive summary of all findings from the pages processed so far"),
-        reason: str = Field(description="Reason for needing to continue processing more pages"),
+        summary: str = Field(description="A comprehensive summary of the findings from all the pages processed so far"),
+        reason: str = Field(description="Reason for needing to continue processing more pages to find the answer"),
         processed_page_range: str | None = Field(default=None, description="Page range of all processed pages so far (e.g., '0', '0-2')"),
         total_pages: int | None = Field(default=None, description="Total number of pages in the document")
     ) -> ActionResponse:
-        """Summarize current findings and reset conversation memory.
+        """Summarize the findings from all the pages processed so far (including finding in the user prompt) to find the answer and reset conversation memory.
 
         This tool should be called when:
-        - Current pages don't contain enough information to answer the question
-        - Need to continue processing more pages to find the answer
-        - Want to avoid context overflow by summarizing progress so far
+        - All the pages processed so far do not contain enough information to find the answer
+        - Need to continue processing more pages to find the final answer
+        - Want to avoid context overflow by summarizing the progress so far
 
         After calling this tool:
         - All previous conversation history (except system prompt and initial task) will be cleared
@@ -606,7 +606,7 @@ class DocumentExtractionCollection(ActionCollection):
         - Agent can continue processing remaining pages with fresh context
 
         Args:
-            summary: A comprehensive summary of findings from pages processed so far
+            summary: A comprehensive summary of the findings from all the pages processed so far (including finding in the user prompt)
             reason: Explanation of why more pages need to be processed
             processed_page_range: Page range of all processed pages so far (e.g., '0', '0-2')
             total_pages: Total number of pages in the document
