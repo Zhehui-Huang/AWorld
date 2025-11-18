@@ -19,6 +19,7 @@ from aworld.agents.llm_agent import Agent
 from aworld.config.conf import AgentConfig
 from aworld.models.llm import call_llm_model, get_llm_model
 from aworld.logs.util import logger
+from aworld.agents.llm_json_dataset_logger import log_separate_llm_call
 
 
 def extract_conversation_history(agent: Agent, task_id: str) -> str:
@@ -123,8 +124,10 @@ def extract_artifacts_and_experience_summary(
         # Get conversation history
         conversation_history = extract_conversation_history(agent, task_id)
         
-        # Create prompt for LLM to analyze the conversation
-        analysis_prompt = f"""Analyze the following task execution conversation and extract key information.
+        # Create system and user prompts for LLM to analyze the conversation
+        system_prompt = """You are an expert at analyzing AI agent task execution conversations. Your role is to extract structured information about artifacts (files, URLs, resources) used or created during task execution, and summarize key insights and learnings from the agent's experience."""
+        
+        user_prompt = f"""Analyze the following task execution conversation and extract key information.
 
 Task: {task_prompt}
 
@@ -163,8 +166,24 @@ Return ONLY valid JSON with this structure:
         
         response = call_llm_model(
             llm_model=get_llm_model(conf=llm_config),
-            messages=[{"role": "user", "content": analysis_prompt}],
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
             temperature=llm_temperature
+        )
+        
+        # Log this separate LLM call with response (including system prompt)
+        analysis_messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+            {"role": "assistant", "content": response.content if response else ""}
+        ]
+        log_separate_llm_call(
+            messages=analysis_messages,
+            agent_type=agent_type,
+            agent_id=agent.id() if hasattr(agent, 'id') else "unknown",
+            llm_purpose="memory_analysis"
         )
         
         # Parse LLM response

@@ -14,6 +14,7 @@ from aworld.config.conf import AgentConfig
 from aworld.logs.util import Color
 from aworld.models.llm import call_llm_model, get_llm_model
 from aworld.models.model_response import ModelResponse
+from aworld.agents.llm_json_dataset_logger import log_separate_llm_call
 from examples.gaia.mcp_collections.base import ActionArguments, ActionCollection, ActionResponse
 
 
@@ -117,7 +118,11 @@ class ImageCollection(ActionCollection):
             AI analysis result
         """
         try:
+            # System prompt for image analysis
+            image_analysis_system_prompt = """You are an expert image analyst. Analyze the provided image and answer the user's question or complete the requested task accurately and comprehensively. Provide detailed descriptions, extract text if present, identify objects, patterns, or any relevant information."""
+            
             messages = [
+                {"role": "system", "content": image_analysis_system_prompt},
                 {
                     "role": "user",
                     "content": [
@@ -132,6 +137,21 @@ class ImageCollection(ActionCollection):
                 temperature=float(os.getenv("LLM_TEMPERATURE", "1.0")),
             )
             self._color_log(f"{response.content=}", Color.green)
+            
+            # Log this separate LLM call with response
+            # For image content in vision models, log the text parts with system prompt
+            text_messages = [
+                {"role": "system", "content": image_analysis_system_prompt},
+                {"role": "user", "content": task},
+                {"role": "assistant", "content": response.content}
+            ]
+            log_separate_llm_call(
+                messages=text_messages,
+                agent_type="file_agent",
+                agent_id="image_analysis",
+                llm_purpose="image_analysis"
+            )
+            
             return response.content
         except Exception as e:
             return f"AI analysis failed: {str(e)}"

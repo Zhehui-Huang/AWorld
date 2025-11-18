@@ -121,6 +121,7 @@ class FileAgentCollection(ActionCollection):
         self,
         name: str,
         description: str,
+        parent_agent_id: Optional[str] = None,
     ) -> tuple[Agent, FileAgentMetadata]:
         """Create a new file agent instance with its own configuration."""
         # Generate unique agent ID
@@ -154,6 +155,12 @@ class FileAgentCollection(ActionCollection):
             mcp_config=self.mcp_config,
             mcp_servers=available_servers,
         )
+        
+        # Update logger with parent information and correct agent type
+        if hasattr(agent, 'llm_json_dataset_logger'):
+            agent.llm_json_dataset_logger.agent_type = "file_agent"
+            if parent_agent_id:
+                agent.llm_json_dataset_logger.parent_agent_id = parent_agent_id
 
         # Create metadata
         metadata = FileAgentMetadata(

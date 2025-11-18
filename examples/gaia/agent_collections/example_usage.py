@@ -106,6 +106,10 @@ def create_main_orchestrator_v2(mcp_config: Dict[str, Any]) -> Agent:
         mcp_config=mcp_config,
         mcp_servers=available_servers,
     )
+    
+    # Set agent type for trajectory logging
+    if hasattr(agent, 'llm_json_dataset_logger'):
+        agent.llm_json_dataset_logger.agent_type = "main_agent"
 
     print(f"✅ Created main orchestrator V2 with access to: {available_servers}")
 
@@ -157,9 +161,9 @@ def example_1_hierarchical_paper_analysis():
     main_agent = create_main_orchestrator_v2(mcp_config)
 
     # Define complex task that benefits from hierarchical orchestration
-    # task_prompt = """A paper about AI regulation that was originally submitted to arXiv.org in June 2022 shows a figure with three axes, where each axis has a label word at both ends. Which of these words is used to describe a type of society in a Physics and Society article submitted to arXiv.org on August 11, 2016?"""
+    task_prompt = """A paper about AI regulation that was originally submitted to arXiv.org in June 2022 shows a figure with three axes, where each axis has a label word at both ends. Which of these words is used to describe a type of society in a Physics and Society article submitted to arXiv.org on August 11, 2016?"""
     # task_prompt = """A paper about AI regulation that was originally submitted to arXiv.org in June 2022. Find and download that. Output the name of the paper."""
-    task_prompt = """2207.01510.pdf has already be downloaded. Please find all words about a type of society or the ideology or principle behind it in the first 6 pages of 2207.01510.pdf and return them. Do not need to process any media, such as images."""
+    # task_prompt = """2207.01510.pdf has already be downloaded. Please find all words about a type of society or the ideology or principle behind it in the first 6 pages of 2207.01510.pdf and return them. Do not need to process any media, such as images."""
     image_path = str(Path(__file__).parent / "image_0.png")
     image_path_1 = str(Path(__file__).parent / "image_1.png")
     # image_path_2 = str(Path(__file__).parent / "image_2.png")

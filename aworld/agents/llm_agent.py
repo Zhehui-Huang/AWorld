@@ -217,8 +217,12 @@ class Agent(BaseAgent[Observation, List[ActionModel]]):
         self.tools_aggregate_func = tool_aggregate_func if tool_aggregate_func else self._tools_aggregate_func
         self.event_handler_name = event_handler_name
 
-        # Extra
-        self.llm_json_dataset_logger = LLMJsonDatasetLogger()
+        # Extra - Initialize logger with agent context for clean trajectory logging
+        self.llm_json_dataset_logger = LLMJsonDatasetLogger(
+            agent_id=self.id(),
+            agent_name=self.name,
+            agent_type=self.__class__.__name__
+        )
 
     @property
     def llm(self):
@@ -576,6 +580,14 @@ class Agent(BaseAgent[Observation, List[ActionModel]]):
                         await send_message(output_message)
                 else:
                     await self._add_llm_response_to_memory(llm_response, message.context, history_messages=messages)
+                    
+                    # Log conversation with assistant response (including tool_calls if present)
+                    final_messages = messages.copy()
+                    assistant_msg = {'role': 'assistant', 'content': llm_response.content or ""}
+                    if llm_response.tool_calls:
+                        assistant_msg['tool_calls'] = llm_response.tool_calls
+                    final_messages.append(assistant_msg)
+                    self.llm_json_dataset_logger.log_conversation(to_serializable(final_messages))
             else:
                 logger.error(f"{self.id()} failed to get LLM response")
                 raise RuntimeError(f"{self.id()} failed to get LLM response")
@@ -593,15 +605,7 @@ class Agent(BaseAgent[Observation, List[ActionModel]]):
         # logger.info(f"agent_result: {agent_result}")
         policy_result: Optional[List[ActionModel]] = None
         if self.is_agent_finished(llm_response, agent_result):
-            # Log the final LLM response for dataset logging since it won't go through build_llm_input again
-            # Build final messages including the LLM response
-            final_messages = messages.copy()
-            if llm_response and llm_response.content:
-                final_messages.append({
-                    'role': 'assistant',
-                    'content': llm_response.content
-                })
-            self.llm_json_dataset_logger.log_conversation(to_serializable(final_messages))
+            # Conversation already logged after _add_llm_response_to_memory above
             policy_result = agent_result.actions
         else:
             if not self.wait_tool_result:
@@ -678,7 +682,7 @@ class Agent(BaseAgent[Observation, List[ActionModel]]):
             logger.debug(f"Process messages error details: {traceback.format_exc()}")
 
         self._log_messages(messages, context=message.context)
-        self.llm_json_dataset_logger.log_conversation(to_serializable(messages))
+        # Note: Don't log here - we'll log after getting the LLM response to include assistant reply with tool_calls
         return messages
 
     def _process_messages(self, messages: List[Dict[str, Any]],

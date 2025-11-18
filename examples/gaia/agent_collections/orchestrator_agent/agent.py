@@ -182,6 +182,12 @@ class OrchestratorAgentCollection(ActionCollection):
             mcp_config=mcp_config,
             mcp_servers=actual_available_agents,
         )
+        
+        # Update logger with hierarchical information
+        if hasattr(agent, 'llm_json_dataset_logger'):
+            agent.llm_json_dataset_logger.parent_agent_id = parent_orchestrator_id
+            agent.llm_json_dataset_logger.orchestration_level = new_level
+            agent.llm_json_dataset_logger.agent_type = "orchestrator_agent"
 
         # Create metadata
         metadata = OrchestratorMetadata(

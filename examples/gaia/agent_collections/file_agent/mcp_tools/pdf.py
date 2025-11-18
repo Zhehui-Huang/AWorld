@@ -26,6 +26,7 @@ from PyPDF2 import PdfReader, PdfWriter
 from aworld.logs.util import Color
 from aworld.models.llm import get_llm_model
 from aworld.config.conf import AgentConfig
+from aworld.agents.llm_json_dataset_logger import log_separate_llm_call
 from examples.gaia.mcp_collections.base import ActionArguments, ActionCollection, ActionResponse
 from examples.gaia.agent_collections.file_agent.prompt import pdf_summarization_system_prompt
 
@@ -261,6 +262,22 @@ Given the following content from pages {page_range} of a PDF document, extract i
             response = await self._summarization_llm.acompletion(messages, temperature=self._llm_temperature)
             summary_text = response.content if hasattr(response, 'content') else str(response)
             
+            # Log this separate LLM call with response
+            messages_with_response = messages + [{"role": "assistant", "content": summary_text}]
+            # Extract agent_id from task_description if available (format: [Agent ID: xxx])
+            agent_id = "unknown"
+            if task_description:
+                import re
+                match = re.search(r'\[Agent ID: ([^\]]+)\]', task_description)
+                if match:
+                    agent_id = match.group(1)
+            log_separate_llm_call(
+                messages=messages_with_response,
+                agent_type="file_agent",
+                agent_id=agent_id,
+                llm_purpose="pdf_summarization"
+            )
+            
             summary_token_count = self._count_tokens(summary_text)
             self._color_log(
                 f"✅ Task-aware summary created ({summary_token_count} tokens, reduced from {total_tokens})",
@@ -328,6 +345,22 @@ The following is a summary that has become too long. Please condense it to about
             
             response = await self._summarization_llm.acompletion(messages, temperature=self._llm_temperature)
             condensed_text = response.content if hasattr(response, 'content') else str(response)
+            
+            # Log this separate LLM call with response
+            messages_with_response = messages + [{"role": "assistant", "content": condensed_text}]
+            # Extract agent_id from task_description if available
+            agent_id = "unknown"
+            if task_description:
+                import re
+                match = re.search(r'\[Agent ID: ([^\]]+)\]', task_description)
+                if match:
+                    agent_id = match.group(1)
+            log_separate_llm_call(
+                messages=messages_with_response,
+                agent_type="file_agent",
+                agent_id=agent_id,
+                llm_purpose="pdf_condensation"
+            )
             
             condensed_token_count = self._count_tokens(condensed_text)
             self._color_log(
