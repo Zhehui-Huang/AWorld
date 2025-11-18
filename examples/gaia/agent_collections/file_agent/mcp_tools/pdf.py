@@ -24,8 +24,10 @@ import tiktoken
 from PyPDF2 import PdfReader, PdfWriter
 
 from aworld.logs.util import Color
-from aworld.core.llm_provider import get_llm_provider
+from aworld.models.llm import get_llm_model
+from aworld.config.conf import AgentConfig
 from examples.gaia.mcp_collections.base import ActionArguments, ActionCollection, ActionResponse
+from examples.gaia.agent_collections.file_agent.prompt import pdf_summarization_system_prompt
 
 
 class DocumentMetadata(BaseModel):
@@ -72,20 +74,17 @@ class DocumentExtractionCollection(ActionCollection):
         
         # Initialize LLM provider for summarization
         self._summarization_llm = None
+        self._llm_temperature = float(os.getenv("LLM_TEMPERATURE", "1.0"))
         try:
-            llm_provider = os.getenv("LLM_PROVIDER", "openai")
-            llm_model_name = os.getenv("LLM_MODEL_NAME", "gpt-4o")
-            llm_base_url = os.getenv("LLM_BASE_URL")
-            llm_api_key = os.getenv("LLM_API_KEY")
-            llm_temperature = float(os.getenv("LLM_TEMPERATURE", "1.0"))
-            
-            self._summarization_llm = get_llm_provider(
-                provider=llm_provider,
-                model_name=llm_model_name,
-                base_url=llm_base_url,
-                api_key=llm_api_key,
-                temperature=llm_temperature
+            llm_config = AgentConfig(
+                llm_provider=os.getenv("LLM_PROVIDER", "openai"),
+                llm_model_name=os.getenv("LLM_MODEL_NAME", "gpt-4o"),
+                llm_base_url=os.getenv("LLM_BASE_URL"),
+                llm_api_key=os.getenv("LLM_API_KEY"),
+                llm_temperature=self._llm_temperature
             )
+            
+            self._summarization_llm = get_llm_model(conf=llm_config)
             self._color_log("Summarization LLM initialized", Color.green, "debug")
         except Exception as e:
             self.logger.warning(f"Failed to initialize summarization LLM: {e}")
@@ -130,11 +129,12 @@ class DocumentExtractionCollection(ActionCollection):
         # Fallback: approximate tokens as chars / 4
         return len(text) // 4
     
-    def _create_summary_sync(self, content: str, page_range: str, task_description: str = None) -> str:
+    def _create_summary_sync(self, previous_summary: str, new_content: str, page_range: str, task_description: str = None) -> str:
         """Synchronous wrapper for _create_summary_async.
         
         Args:
-            content: The full content to summarize
+            previous_summary: Summary from previous pages (can be empty string)
+            new_content: New content from current pages to summarize
             page_range: The page range this content covers
             task_description: Optional task/question context for focused summarization
             
@@ -145,130 +145,227 @@ class DocumentExtractionCollection(ActionCollection):
             # Try to get the current event loop
             loop = asyncio.get_event_loop()
             if loop.is_running():
-                # If loop is already running, create a new task
-                # This shouldn't happen in normal MCP context but handle it
+                # If loop is already running, we need to run in a separate thread
+                # This shouldn't happen in normal MCP context but handle it gracefully
                 import concurrent.futures
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     future = executor.submit(
                         asyncio.run,
-                        self._create_summary_async(content, page_range, task_description)
+                        self._create_summary_async(previous_summary, new_content, page_range, task_description)
                     )
                     return future.result()
             else:
                 # Use existing loop
-                return loop.run_until_complete(self._create_summary_async(content, page_range, task_description))
+                return loop.run_until_complete(self._create_summary_async(previous_summary, new_content, page_range, task_description))
         except RuntimeError:
             # No event loop exists, create one
-            return asyncio.run(self._create_summary_async(content, page_range, task_description))
+            return asyncio.run(self._create_summary_async(previous_summary, new_content, page_range, task_description))
     
-    async def _create_summary_async(self, content: str, page_range: str, task_description: str = None) -> str:
+    async def _create_summary_async(self, previous_summary: str, new_content: str, page_range: str, task_description: str = None) -> str:
         """Create a task-aware summary of extracted content using LLM.
         
         Args:
-            content: The full content to summarize
-            page_range: The page range this content covers
+            previous_summary: Summary from previous pages (can be empty string)
+            new_content: New content from current pages to summarize
+            page_range: The page range this content covers (1-indexed for display)
             task_description: Optional task/question context for focused summarization
             
         Returns:
-            Summarized content
+            Summarized content combining previous summary with new content
         """
-        token_count = self._count_tokens(content)
+        if not self._summarization_llm:
+            self.logger.warning("Summarization LLM not available, returning empty summary")
+            return ""
         
-        if token_count <= 1000:
-            # Content is short enough, return as-is with header
-            return f"## Content from pages {page_range}:\n{content}\n"
+        # Calculate token counts for logging
+        prev_tokens = self._count_tokens(previous_summary) if previous_summary else 0
+        new_tokens = self._count_tokens(new_content)
+        total_tokens = prev_tokens + new_tokens
         
-        # Use LLM to create intelligent summary
-        if self._summarization_llm:
-            try:
-                self._color_log(
-                    f"🤖 Creating task-aware LLM summary for pages {page_range} ({token_count} tokens)...",
-                    Color.cyan,
-                    "debug"
-                )
-                
-                # Build task-aware summarization prompt
-                if task_description:
-                    summarization_prompt = f"""You are helping to answer the following task/question:
+        try:
+            self._color_log(
+                f"🤖 Creating task-aware LLM summary for pages {page_range} (prev: {prev_tokens}, new: {new_tokens}, total: {total_tokens} tokens)...",
+                Color.cyan,
+                "debug"
+            )
+            
+            # Build user prompt - restructured to cover previous summary first
+            if task_description:
+                if previous_summary:
+                    user_prompt = f"""Task: {task_description}
 
-**Task**: {task_description}
+You are continuing to process a multi-page PDF document. Below is the summary of content from previous pages, followed by new content from pages {page_range}.
 
-Summarize the following content from pages {page_range} of a PDF document, focusing on information relevant to the task above.
+### Previous Summary ###
+{previous_summary}
 
-Requirements:
-1. Preserve all facts, data, numbers, and details that might help answer the task
-2. Highlight any information directly relevant to the task/question
-3. Keep technical terms and specific information
-4. Maintain logical structure and flow
-5. Use clear, organized formatting with markdown
-6. If no relevant information is found, explicitly state that
+### New Content from pages {page_range} ###
+{new_content}
 
-Content to summarize:
-{content}
-
-Provide a focused summary that preserves information relevant to the task:"""
+### Requirements ###
+- Integrates the previous summary with the new content
+- Preserves all key facts, data, numbers, and important details
+- Highlight any information directly relevant to the task or question
+- Keep technical terms and specific information
+- Maintain logical structure and flow
+- Uses clear, organized formatting
+- If no relevant information is found in the new content, explicitly state that"""
                 else:
-                    summarization_prompt = f"""Summarize the following content from pages {page_range} of a PDF document.
+                    user_prompt = f"""Task: {task_description}
 
-Requirements:
-1. Preserve all key facts, data, numbers, and important details
-2. Maintain logical structure and flow
-3. Keep technical terms and specific information
-4. Be comprehensive but concise
-5. Use clear, organized formatting with markdown
+Given the following content from pages {page_range} of a PDF document, extract information to help answer the task above.
 
-Content to summarize:
-{content}
+### Content from pages {page_range} ###
+{new_content}
 
-Provide a comprehensive summary that preserves all important information:"""
+### Requirements ###
+- Preserve all key facts, data, numbers, and important details
+- Highlight any information directly relevant to the task or question
+- Keep technical terms and specific information
+- Maintain logical structure and flow
+- Use clear, organized formatting
+- If no relevant information is found, explicitly state that"""
+            else:
+                if previous_summary:
+                    user_prompt = f"""You are continuing to process a multi-page PDF document. Below is the summary of content from previous pages, followed by new content from pages {page_range}.
 
-                messages = [
-                    {"role": "system", "content": "You are helping to extract and summarize information from PDF documents."},
-                    {"role": "user", "content": summarization_prompt}
-                ]
-                
-                response = await self._summarization_llm.acompletion(messages)
-                summary_text = response.content if hasattr(response, 'content') else str(response)
-                
-                self._color_log(
-                    f"✅ Task-aware summary created ({self._count_tokens(summary_text)} tokens)",
-                    Color.green,
-                    "debug"
-                )
-                
-                task_label = "task-aware " if task_description else ""
-                return f"## Summary of pages {page_range} ({task_label}LLM summary from {token_count} tokens):\n{summary_text}\n"
-                
-            except Exception as e:
-                self.logger.warning(f"LLM summarization failed, falling back to simple method: {e}")
+### Previous Summary ###
+{previous_summary}
+
+### New Content from pages {page_range} ###
+{new_content}
+
+### Requirements ###
+- Integrate the previous summary with the new content
+- Preserve all key facts, data, numbers, and important details
+- Keep technical terms and specific information
+- Maintain logical structure and flow
+- Use clear, organized formatting"""
+                else:
+                    user_prompt = f"""Summarize the following content from pages {page_range} of a PDF document.
+
+### Content from pages {page_range} ###
+{new_content}
+
+### Requirements ###
+- Preserve all key facts, data, numbers, and important details
+- Keep technical terms and specific information
+- Maintain logical structure and flow
+- Use clear, organized formatting"""
+            
+            messages = [
+                {"role": "system", "content": pdf_summarization_system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+            
+            response = await self._summarization_llm.acompletion(messages, temperature=self._llm_temperature)
+            summary_text = response.content if hasattr(response, 'content') else str(response)
+            
+            summary_token_count = self._count_tokens(summary_text)
+            self._color_log(
+                f"✅ Task-aware summary created ({summary_token_count} tokens, reduced from {total_tokens})",
+                Color.green,
+                "debug"
+            )
+            
+            return summary_text
+
+        except Exception as e:
+            self.logger.warning(f"LLM summarization failed: {e}")
+            return ""
+    
+    async def _condense_summary_async(self, summary: str, task_description: str = None) -> str:
+        """Condense a summary to make it more concise while preserving key information.
         
-        # Fallback: Simple summarization if LLM fails or not available
-        char_limit = 2000  # Approximate character limit for ~500 tokens
+        Args:
+            summary: The summary to condense
+            task_description: Optional task/question context
+            
+        Returns:
+            Condensed summary
+        """
+        if not self._summarization_llm:
+            self.logger.warning("Summarization LLM not available, returning original summary")
+            return summary
         
-        first_part = content[:char_limit]
-        last_part = content[-char_limit:]
+        token_count = self._count_tokens(summary)
         
-        # Find good break points (end of sentence or paragraph)
-        first_break = first_part.rfind('\n\n')
-        if first_break == -1:
-            first_break = first_part.rfind('. ')
-        if first_break != -1:
-            first_part = first_part[:first_break + 1]
+        try:
+            self._color_log(
+                f"🔄 Condensing summary ({token_count} tokens)...",
+                Color.magenta,
+                "debug"
+            )
+            
+            if task_description:
+                user_prompt = f"""Task: {task_description}
+
+The following is a summary that has become too long. Please condense it to about half the length while preserving all critical information relevant to the task.
+
+### Summary to condense ###
+{summary}
+
+### Requirements ###
+- Keep ALL key facts, numbers, and data relevant to the task
+- Remove redundancy and verbose explanations
+- Maintain clarity and readability
+- Focus on information that helps answer the task"""
+            else:
+                user_prompt = f"""The following summary has become too long. Please condense it to about half the length while preserving all critical information.
+
+### Summary to condense ###
+{summary}
+
+### Requirements ###
+- Keep ALL key facts, numbers, and data relevant to the task
+- Remove redundancy and verbose explanations
+- Maintain clarity and readability"""
+            
+            messages = [
+                {"role": "system", "content": pdf_summarization_system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+            
+            response = await self._summarization_llm.acompletion(messages, temperature=self._llm_temperature)
+            condensed_text = response.content if hasattr(response, 'content') else str(response)
+            
+            condensed_token_count = self._count_tokens(condensed_text)
+            self._color_log(
+                f"✅ Summary condensed ({condensed_token_count} tokens, reduced from {token_count})",
+                Color.green,
+                "debug"
+            )
+            
+            return condensed_text
+
+        except Exception as e:
+            self.logger.warning(f"Summary condensation failed: {e}")
+            return summary
+    
+    def _condense_summary_sync(self, summary: str, task_description: str = None) -> str:
+        """Synchronous wrapper for _condense_summary_async.
         
-        last_break = last_part.find('\n\n')
-        if last_break == -1:
-            last_break = last_part.find('. ')
-        if last_break != -1:
-            last_part = last_part[last_break + 1:]
-        
-        summary = (
-            f"## Summary of pages {page_range} ({token_count} tokens, auto-truncated):\n"
-            f"{first_part}\n"
-            f"[... middle content omitted for brevity ...]\n"
-            f"{last_part}\n"
-        )
-        
-        return summary
+        Args:
+            summary: The summary to condense
+            task_description: Optional task/question context
+            
+        Returns:
+            Condensed summary
+        """
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(
+                        asyncio.run,
+                        self._condense_summary_async(summary, task_description)
+                    )
+                    return future.result()
+            else:
+                return loop.run_until_complete(self._condense_summary_async(summary, task_description))
+        except RuntimeError:
+            return asyncio.run(self._condense_summary_async(summary, task_description))
 
     def _get_pdf_page_count(self, file_path: Path) -> int | None:
         """Get the total number of pages in a PDF file using pypdf.
@@ -297,7 +394,7 @@ Provide a comprehensive summary that preserves all important information:"""
             file_path: Path to the PDF file
             
         Returns:
-            List of outline items with title, page number, and level
+            List of outline items with title and page number
         """
         if PdfReader is None:
             return []
@@ -306,7 +403,7 @@ Provide a comprehensive summary that preserves all important information:"""
             reader = PdfReader(str(file_path))
             outline_items = []
             
-            def extract_outline_recursive(outline, level=0):
+            def extract_outline_recursive(outline):
                 """Recursively extract outline items."""
                 if not outline:
                     return
@@ -314,9 +411,8 @@ Provide a comprehensive summary that preserves all important information:"""
                 for item in outline:
                     if isinstance(item, list):
                         # Nested outline
-                        extract_outline_recursive(item, level + 1)
+                        extract_outline_recursive(item)
                     else:
-                        # Individual outline item
                         try:
                             title = item.title if hasattr(item, 'title') else str(item)
                             # Get page number (0-indexed)
@@ -326,7 +422,6 @@ Provide a comprehensive summary that preserves all important information:"""
                                 outline_items.append({
                                     "title": title,
                                     "page": page_num,
-                                    "level": level
                                 })
                         except Exception as e:
                             self.logger.debug(f"Failed to extract outline item: {e}")
@@ -389,7 +484,7 @@ Provide a comprehensive summary that preserves all important information:"""
 
         Args:
             file_path: Path to the document file
-            page_range: Specific pages to process (e.g., '0,5-10,20')
+            page_range: Specific pages to process (0-indexed internally, e.g., '0,5-10,20')
             force_ocr: Use OCR to extract text from images if available
             total_pages: Total number of pages in the PDF (for validation)
 
@@ -398,6 +493,9 @@ Provide a comprehensive summary that preserves all important information:"""
         
         Raises:
             ValueError: If any requested page is out of range
+        
+        Note:
+            This method expects 0-indexed page numbers internally.
         """
         start_time = time.time()
         temp_pdf_path = None
@@ -406,7 +504,7 @@ Provide a comprehensive summary that preserves all important information:"""
             # Handle page range using pypdf
             pages = None
             if page_range:
-                # Parse page range string (e.g., "0,5-10,20")
+                # Parse page range string (e.g., "0,5-10,20") - already 0-indexed
                 pages = []
                 for part in page_range.split(","):
                     if "-" in part:
@@ -545,31 +643,33 @@ Provide a comprehensive summary that preserves all important information:"""
         self,
         file_path: str = Field(description="Path to the PDF document file to extract content from"),
         task_description: str = Field(default="", description="The task/question you're trying to answer using this PDF content. Used to create task-aware summaries when content exceeds token limits."),
-        insight_page_range: str | None = Field(default=None, description="Optional page range hint where the answer might be located (e.g., '5-10'). If provided, this range will be processed first. If no answer is found, the entire document will be processed."),
         output_format: Literal["markdown", "json", "html"] = Field(default="markdown", description="Output format: 'markdown', 'json', or 'html'"),
         extract_images: bool = Field(default=True, description="Whether to extract and save images from the whole document"),
         save_extracted_text_to_file: bool = Field(default=False, description="Save extracted text to a local file"),
         use_llm: bool = Field(default=False, description="Use LLM for enhanced accuracy (requires additional setup)"),
-        page_range: str | None = Field(default=None, description="Specific pages to process (e.g., '0,5-10,20'). Use this when you know exactly which pages to extract. Leave empty to process entire document."),
+        page_range: str | None = Field(default=None, description="Specific pages to process (e.g., '1,5-10,20' for pages 1, 5 through 10, and 20). Pages are 1-indexed. Use this when you know exactly which pages to extract. Leave empty to process entire document."),
         force_ocr: bool = Field(default=False, description="Force OCR processing on the entire document"),
         format_lines: bool = Field(default=False, description="Reformat lines using local OCR model for better quality"),
         return_extracted_text: bool = Field(default=True, description="Return the extracted text content in the response"),
         return_metadata: bool = Field(default=True, description="Return metadata in the response. If metadata has already included in the previous message, set this to False to avoid duplication.")
     ) -> ActionResponse:
-        """Extract content from PDF documents using marker package with automatic summarization.
+        """Extract content from PDF documents using marker package with rolling summarization.
 
         This tool provides comprehensive PDF document content extraction with support for:
-        - PDF files
+        - PDF files (pages are 1-indexed: page 1, page 2, etc.)
         - Text extraction with proper formatting
         - Image and media extraction
         - Metadata collection
         - LLM-optimized output formatting
-        - Optional page range selection
+        - Optional page range selection (1-indexed)
         - OCR processing support
-        - Automatic incremental processing with summarization for long content
+        - Automatic rolling summarization for long content
 
-        The tool processes pages incrementally and automatically summarizes content when
-        it exceeds the token limit, preventing context overflow.
+        The tool processes pages incrementally with rolling summarization:
+        - Previous summaries are combined with new page content
+        - When previous summary exceeds 60% of token limit, it's condensed
+        - When combined content exceeds token limit, a new rolling summary is created
+        - This approach prevents context overflow while maintaining information flow
 
         Args:
             args: Document extraction arguments including file path and options
@@ -582,8 +682,6 @@ Provide a comprehensive summary that preserves all important information:"""
                 file_path = file_path.default
             if isinstance(task_description, FieldInfo):
                 task_description = task_description.default
-            if isinstance(insight_page_range, FieldInfo):
-                insight_page_range = insight_page_range.default
             if isinstance(output_format, FieldInfo):
                 output_format = output_format.default
             if isinstance(extract_images, FieldInfo):
@@ -612,58 +710,56 @@ Provide a comprehensive summary that preserves all important information:"""
             # Get page count from the original PDF
             total_pages = self._get_pdf_page_count(file_path)
 
-            # Determine which pages to process based on insight_page_range or page_range
+            # Determine which pages to process based on page_range (convert from 1-indexed to 0-indexed)
             pages_to_process = []
-            using_insight_range = False
             
-            # Priority: insight_page_range > page_range > all pages
-            if insight_page_range:
-                # Process insight pages first
-                self._color_log(f"📍 Processing insight page range first: {insight_page_range}", Color.yellow)
-                for part in insight_page_range.split(","):
-                    if "-" in part:
-                        start, end = map(int, part.split("-"))
-                        pages_to_process.extend(range(start, end + 1))
-                    else:
-                        pages_to_process.append(int(part))
-                using_insight_range = True
-            elif page_range:
-                # Process specified pages
+            if page_range:
+                # Process specified pages (user provides 1-indexed, convert to 0-indexed)
+                self._color_log(f"Processing specified page range: {page_range} (1-indexed)", Color.yellow)
                 for part in page_range.split(","):
                     if "-" in part:
                         start, end = map(int, part.split("-"))
-                        pages_to_process.extend(range(start, end + 1))
+                        # Convert from 1-indexed to 0-indexed
+                        pages_to_process.extend(range(start - 1, end))
                     else:
-                        pages_to_process.append(int(part))
+                        # Convert from 1-indexed to 0-indexed
+                        pages_to_process.append(int(part) - 1)
             else:
-                # Process all pages if no range specified
+                # Process all pages if no range specified (0-indexed internally)
                 if total_pages is not None:
                     pages_to_process = list(range(total_pages))
                 else:
                     raise ValueError("Cannot determine page range without total page count")
             
-            # Validate pages
+            # Validate pages (0-indexed)
             if total_pages is not None:
-                invalid_pages = [p for p in pages_to_process if p < 0 or p >= total_pages]
-                if invalid_pages:
+                invalid_pages_0indexed = [p for p in pages_to_process if p < 0 or p >= total_pages]
+                if invalid_pages_0indexed:
+                    # Convert back to 1-indexed for error message
+                    invalid_pages_1indexed = [p + 1 for p in invalid_pages_0indexed]
                     raise ValueError(
-                        f"Invalid page numbers {invalid_pages}. "
-                        f"Document has {total_pages} pages (valid range: 0-{total_pages-1})"
+                        f"Invalid page numbers {invalid_pages_1indexed}. "
+                        f"Document has {total_pages} pages (valid range: 1-{total_pages})"
                     )
 
-            self._color_log(f"Will process {len(pages_to_process)} pages incrementally", Color.cyan)
+            self._color_log(f"Will process {len(pages_to_process)} pages with rolling summarization", Color.cyan)
 
             # Load marker models if needed
             self._load_marker_models()
 
-            # Process pages incrementally with automatic summarization
-            summaries = []
-            accumulated_content = ""
-            accumulated_pages = []
+            # Process pages with rolling summarization
+            previous_summary = ""  # Rolling summary from previous pages
+            accumulated_new_content = ""  # New content not yet summarized
+            accumulated_pages = []  # Pages in accumulated_new_content
             all_saved_media = []
+            first_page_in_summary = pages_to_process[0] if pages_to_process else 0  # Track the first page covered by summary
+            
+            condensation_threshold = int(self._token_limit * 0.6)  # 60% of token limit
             
             for page_num in pages_to_process:
-                self._color_log(f"Processing page {page_num}...", Color.blue, "debug")
+                # Convert to 1-indexed for display
+                page_num_display = page_num + 1
+                self._color_log(f"Processing page {page_num_display}...", Color.blue, "debug")
                 
                 # Extract this single page
                 extraction_result = self._extract_content_with_marker(
@@ -676,59 +772,75 @@ Provide a comprehensive summary that preserves all important information:"""
                 if extract_images and extraction_result["images"] and not all_saved_media:
                     all_saved_media = self._save_extracted_media(extraction_result["images"], file_path.stem)
                 
-                # Accumulate content
-                accumulated_content += f"\n## Page {page_num}\n{page_content}\n"
+                # Check if previous_summary needs condensation
+                if previous_summary:
+                    summary_tokens = self._count_tokens(previous_summary)
+                    if summary_tokens > condensation_threshold:
+                        self._color_log(
+                            f"Previous summary has {summary_tokens} tokens (>{condensation_threshold}), condensing...",
+                            Color.yellow
+                        )
+                        previous_summary = self._condense_summary_sync(previous_summary, task_description)
+                        condensed_tokens = self._count_tokens(previous_summary)
+                        self._color_log(
+                            f"Summary condensed to {condensed_tokens} tokens",
+                            Color.green,
+                            "debug"
+                        )
+                
+                # Accumulate new content
+                accumulated_new_content += page_content
                 accumulated_pages.append(page_num)
                 
-                # Check token count
-                current_tokens = self._count_tokens(accumulated_content)
+                # Calculate total tokens from both previous summary and accumulated new content
+                prev_summary_tokens = self._count_tokens(previous_summary) if previous_summary else 0
+                new_content_tokens = self._count_tokens(accumulated_new_content)
+                total_tokens = prev_summary_tokens + new_content_tokens
+                
                 self._color_log(
-                    f"Accumulated {current_tokens} tokens from {len(accumulated_pages)} pages", 
-                    Color.yellow, 
+                    f"Total: {total_tokens} tokens (summary: {prev_summary_tokens}, new: {new_content_tokens})",
+                    Color.yellow,
                     "debug"
                 )
                 
-                # If exceeds limit, summarize and reset
-                if current_tokens > self._token_limit:
-                    page_range_str = f"{accumulated_pages[0]}-{accumulated_pages[-1]}" if len(accumulated_pages) > 1 else str(accumulated_pages[0])
-                    summary = self._create_summary_sync(accumulated_content, page_range_str, task_description)
-                    summaries.append(summary)
+                # If combined content exceeds limit, summarize
+                if total_tokens > self._token_limit:
+                    # Create page range string (1-indexed for display)
+                    last_page_display = accumulated_pages[-1] + 1 if accumulated_pages else page_num_display
+                    first_page_display = first_page_in_summary + 1
+                    page_range_str = f"{first_page_display}-{last_page_display}"
+                    
+                    # Summarize with both previous summary and new content
+                    previous_summary = self._create_summary_sync(previous_summary, accumulated_new_content, page_range_str, task_description)
                     
                     self._color_log(
-                        f"📝 Content exceeded {self._token_limit} tokens, created summary for pages {page_range_str}",
+                        f"📝 Content exceeded {self._token_limit} tokens, created rolling summary for pages {page_range_str}",
                         Color.cyan
                     )
                     
-                    # Reset accumulation
-                    accumulated_content = ""
+                    # Reset new content accumulation
+                    accumulated_new_content = ""
                     accumulated_pages = []
+                    # Update first page to track the start of the next chunk
+                    current_idx = pages_to_process.index(page_num)
+                    if current_idx + 1 < len(pages_to_process):
+                        first_page_in_summary = pages_to_process[current_idx + 1]
             
-            # Handle remaining accumulated content
-            if accumulated_content:
-                if accumulated_pages:
-                    page_range_str = f"{accumulated_pages[0]}-{accumulated_pages[-1]}" if len(accumulated_pages) > 1 else str(accumulated_pages[0])
-                    # If it's short enough, just add it directly; otherwise summarize
-                    remaining_tokens = self._count_tokens(accumulated_content)
-                    if remaining_tokens > self._token_limit:
-                        summary = self._create_summary_sync(accumulated_content, page_range_str, task_description)
-                        summaries.append(summary)
-                    else:
-                        summaries.append(f"## Content from pages {page_range_str}:\n{accumulated_content}")
-            
-            # Combine all summaries and content
-            if summaries:
-                final_content = "\n".join(summaries)
-                
-                # Add hint if this was an insight_page_range extraction
-                if using_insight_range and total_pages is not None:
-                    processed_pages = set(pages_to_process)
-                    all_pages = set(range(total_pages))
-                    remaining_pages = all_pages - processed_pages
-                    if remaining_pages:
-                        final_content += f"\n\n---\n**Note**: This extraction processed insight pages {insight_page_range} ({len(processed_pages)} pages). If the answer was not found, there are {len(remaining_pages)} remaining pages in the document that can be processed by calling this tool again without insight_page_range.\n---\n"
+            # Handle remaining content
+            if accumulated_new_content or previous_summary:
+                if accumulated_new_content:
+                    # Create final summary from previous summary and remaining new content
+                    last_page_display = accumulated_pages[-1] + 1 if accumulated_pages else (pages_to_process[-1] + 1 if pages_to_process else 1)
+                    first_page_display = first_page_in_summary + 1
+                    page_range_str = f"{first_page_display}-{last_page_display}"
+                    
+                    final_content = self._create_summary_sync(previous_summary, accumulated_new_content, page_range_str, task_description)
+                else:
+                    # Only previous summary remains
+                    final_content = previous_summary
                 
                 self._color_log(
-                    f"✅ Processed {len(pages_to_process)} pages with {len(summaries)} content sections",
+                    f"✅ Processed {len(pages_to_process)} pages with rolling summarization",
                     Color.green
                 )
             else:
@@ -816,18 +928,15 @@ Provide a comprehensive summary that preserves all important information:"""
 
         This is a lightweight operation that quickly retrieves document information including:
         - File name and size
-        - Total number of pages
+        - Total number of pages (1-indexed)
         - File type and absolute path
-        - Document outline/table of contents with page numbers (if available)
-        
-        The outline information is particularly useful for understanding document structure
-        and deciding which pages to extract for specific tasks.
+        - Document outline/table of contents with page numbers (1-indexed, if available)
 
         Args:
             file_path: Path to the PDF document file
 
         Returns:
-            ActionResponse with document metadata including total_page_num and outline
+            ActionResponse with document metadata including total_page_num and outline (pages are 1-indexed)
         """
         try:
             if isinstance(file_path, FieldInfo):
@@ -872,7 +981,7 @@ Provide a comprehensive summary that preserves all important information:"""
                 Color.green,
             )
 
-            # Build metadata summary with outline
+            # Build metadata summary with outline (convert to 1-indexed for display)
             metadata_summary = (
                 f"Document Metadata:\n"
                 f"- File: {document_metadata.file_name}\n"
@@ -881,20 +990,20 @@ Provide a comprehensive summary that preserves all important information:"""
                 f"- Absolute Path: {document_metadata.absolute_path}\n"
             )
             
-            # Add outline information if available
+            # Add outline information if available (convert page numbers to 1-indexed)
             if outline:
                 metadata_summary += f"\nDocument Outline (Table of Contents):\n"
                 for item in outline:
-                    indent = "  " * item["level"]
-                    metadata_summary += f"{indent}- {item['title']} (page {item['page']})\n"
-                metadata_summary += "\n💡 Use this outline to determine which pages to extract for specific information."
+                    # Convert from 0-indexed to 1-indexed for display
+                    page_1indexed = item['page'] + 1
+                    metadata_summary += f"- {item['title']} (page {page_1indexed})\n"
             else:
                 metadata_summary += "\n(No outline/table of contents found in this PDF)"
 
             return ActionResponse(
                 success=True,
                 message=metadata_summary,
-                metadata={"outline": outline} if outline else {}
+                metadata={}
             )
 
         except FileNotFoundError as e:
