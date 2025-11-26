@@ -35,8 +35,8 @@ class SearchResult(BaseModel):
     url: str
     snippet: str
     source: str
-    display_link: str | None = None
-    formatted_url: str | None = None
+    # display_link: str | None = None
+    # formatted_url: str | None = None
 
 
 class SearchMetadata(BaseModel):
@@ -102,12 +102,8 @@ class SearchCollection(ActionCollection):
                 f"## Result {i}: {result.title}",
                 f"**URL:** {result.url}",
                 f"**Source:** {result.source}",
+                f"**Summary:** {result.snippet}",
             ]
-
-            if result.display_link:
-                result_section.append(f"**Domain:** {result.display_link}")
-
-            result_section.append(f"**Summary:** {result.snippet}")
             result_section.append("")  # Empty line for spacing
 
             formatted_parts.append("\n".join(result_section))
@@ -228,13 +224,13 @@ class SearchCollection(ActionCollection):
                         url=item.get("link", ""),
                         snippet=item.get("snippet", ""),
                         source="google",
-                        display_link=item.get("displayLink", ""),
-                        formatted_url=item.get("formattedUrl", ""),
+                        # display_link=item.get("displayLink", ""),
+                        # formatted_url=item.get("formattedUrl", ""),
                     )
                     search_results.append(result)
 
             # Format results based on requested format
-            if "json" == "json":
+            if output_format.lower() == "json":
                 formatted_content = {
                     "query": validated_query,
                     "results": [result.model_dump() for result in search_results],
