@@ -21,6 +21,16 @@
             "env": {
             },
             "client_session_timeout_seconds": 9999.0
+        },
+        "wiki": {
+            "command": "python",
+            "args": [
+                "-m",
+                "examples.gaia.agent_collections.search_agent.mcp_tools.wiki"
+            ],
+            "env": {
+            },
+            "client_session_timeout_seconds": 9999.0
         }
     }
 }

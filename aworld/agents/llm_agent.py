@@ -582,6 +582,10 @@ class Agent(BaseAgent[Observation, List[ActionModel]]):
                     await self._add_llm_response_to_memory(llm_response, message.context, history_messages=messages)
                     
                     # Log conversation with assistant response (including tool_calls if present)
+                    # Update logger with current session and task IDs to prevent overwriting previous trajectories
+                    self.llm_json_dataset_logger.session_id = message.context.get_task().session_id if message.context else None
+                    self.llm_json_dataset_logger.task_id = message.context.get_task().id if message.context else None
+                    
                     final_messages = messages.copy()
                     assistant_msg = {'role': 'assistant', 'content': llm_response.content or ""}
                     if llm_response.tool_calls:

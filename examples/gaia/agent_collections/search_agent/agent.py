@@ -83,10 +83,12 @@ class SearchAgentCollection(ActionCollection):
     - reuse existing search agent
     """
 
-    def __init__(self, arguments: ActionArguments) -> None:
+    def __init__(self, arguments: ActionArguments, use_memory: bool = False) -> None:
         super().__init__(arguments)
         # Initialize agent registry
         self.agent_registry = AgentRegistry()
+        # Memory configuration
+        self.use_memory = use_memory
         # Load MCP configuration for search tools
         self.mcp_config = self._load_mcp_config()
         # Log initialization status
@@ -216,26 +218,29 @@ class SearchAgentCollection(ActionCollection):
 
             self._color_log(f"✅ Agent created with ID: {metadata.agent_id}", Color.green)
 
-            # Retrieve relevant memories from past tasks
-            memory = get_agent_memory()
-            relevant_memories = memory.retrieve_relevant_memories(
-                agent_id=metadata.agent_id,
-                task_description=task_prompt,
-                max_results=3
-            )
-            
-            if relevant_memories:
-                self._color_log(
-                    f"🧠 Retrieved {len(relevant_memories)} relevant past experiences",
-                    Color.blue
+            # Retrieve relevant memories from past tasks (if enabled)
+            relevant_memories = []
+            memory = None
+            if self.use_memory:
+                memory = get_agent_memory()
+                relevant_memories = memory.retrieve_relevant_memories(
+                    agent_id=metadata.agent_id,
+                    task_description=task_prompt,
+                    max_results=3
                 )
+                
+                if relevant_memories:
+                    self._color_log(
+                        f"🧠 Retrieved {len(relevant_memories)} relevant past experiences",
+                        Color.blue
+                    )
             
             # Add agent ID to task prompt
             task_prompt_with_id = f"[Agent ID: {metadata.agent_id}]\n\n{task_prompt}"
             
-            # Enhance task prompt with past experiences
+            # Enhance task prompt with past experiences (if memory enabled)
             enhanced_task_prompt = task_prompt_with_id
-            if relevant_memories:
+            if self.use_memory and relevant_memories:
                 memory_context = memory.format_memories_for_prompt(relevant_memories)
                 enhanced_task_prompt = f"{task_prompt_with_id}\n\n##\nPrevious Experience:\n{memory_context}\n##"
 
@@ -259,17 +264,18 @@ class SearchAgentCollection(ActionCollection):
                 answer = None
                 self._color_log(f"⚠️ Task completed with no answer", Color.yellow)
 
-            # Extract artifacts and experience summary, then save task memory
-            save_task_memory_with_analysis(
-                memory=memory,
-                agent=agent,
-                task_id=task.id,
-                agent_id=metadata.agent_id,
-                agent_type="search_agent",
-                task_prompt=task_prompt,
-                answer=answer,
-                logger_func=lambda msg, level: self._color_log(msg, Color.blue, level)
-            )
+            # Extract artifacts and experience summary, then save task memory (if enabled)
+            if self.use_memory and memory is not None:
+                save_task_memory_with_analysis(
+                    memory=memory,
+                    agent=agent,
+                    task_id=task.id,
+                    agent_id=metadata.agent_id,
+                    agent_type="search_agent",
+                    task_prompt=task_prompt,
+                    answer=answer,
+                    logger_func=lambda msg, level: self._color_log(msg, Color.blue, level)
+                )
 
             # Format response
             formatted_message = answer
@@ -345,26 +351,29 @@ class SearchAgentCollection(ActionCollection):
 
             self._color_log(f"🔄 Using existing search agent: {metadata.name} ({agent_id})", Color.cyan)
 
-            # Retrieve relevant memories from past tasks
-            memory = get_agent_memory()
-            relevant_memories = memory.retrieve_relevant_memories(
-                agent_id=metadata.agent_id,
-                task_description=task_prompt,
-                max_results=3
-            )
-            
-            if relevant_memories:
-                self._color_log(
-                    f"🧠 Retrieved {len(relevant_memories)} relevant past experiences",
-                    Color.blue
+            # Retrieve relevant memories from past tasks (if enabled)
+            relevant_memories = []
+            memory = None
+            if self.use_memory:
+                memory = get_agent_memory()
+                relevant_memories = memory.retrieve_relevant_memories(
+                    agent_id=metadata.agent_id,
+                    task_description=task_prompt,
+                    max_results=3
                 )
+                
+                if relevant_memories:
+                    self._color_log(
+                        f"🧠 Retrieved {len(relevant_memories)} relevant past experiences",
+                        Color.blue
+                    )
             
             # Add agent ID to task prompt
             task_prompt_with_id = f"[Agent ID: {metadata.agent_id}]\n\n{task_prompt}"
             
-            # Enhance task prompt with past experiences
+            # Enhance task prompt with past experiences (if memory enabled)
             enhanced_task_prompt = task_prompt_with_id
-            if relevant_memories:
+            if self.use_memory and relevant_memories:
                 memory_context = memory.format_memories_for_prompt(relevant_memories)
                 enhanced_task_prompt = f"{task_prompt_with_id}\n\n##\nPrevious Experience:\n{memory_context}\n##"
 
@@ -388,17 +397,18 @@ class SearchAgentCollection(ActionCollection):
                 answer = None
                 self._color_log(f"⚠️ Task completed with no answer", Color.yellow)
 
-            # Extract artifacts and experience summary, then save task memory
-            save_task_memory_with_analysis(
-                memory=memory,
-                agent=agent,
-                task_id=task.id,
-                agent_id=metadata.agent_id,
-                agent_type="search_agent",
-                task_prompt=task_prompt,
-                answer=answer,
-                logger_func=lambda msg, level: self._color_log(msg, Color.blue, level)
-            )
+            # Extract artifacts and experience summary, then save task memory (if enabled)
+            if self.use_memory and memory is not None:
+                save_task_memory_with_analysis(
+                    memory=memory,
+                    agent=agent,
+                    task_id=task.id,
+                    agent_id=metadata.agent_id,
+                    agent_type="search_agent",
+                    task_prompt=task_prompt,
+                    answer=answer,
+                    logger_func=lambda msg, level: self._color_log(msg, Color.blue, level)
+                )
 
             # Format response
             formatted_message = answer

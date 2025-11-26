@@ -95,6 +95,10 @@ class LLMJsonDatasetLogger:
         self._orchestration_level = orchestration_level
         self._base_file_path = file_path
         
+        # Track current session and task for unique trajectory logging
+        self._session_id: Optional[str] = None
+        self._task_id: Optional[str] = None
+        
         # Determine and set file path
         self._update_file_path()
         
@@ -152,6 +156,22 @@ class LLMJsonDatasetLogger:
     def orchestration_level(self, value: int):
         self._orchestration_level = value
     
+    @property
+    def session_id(self) -> Optional[str]:
+        return self._session_id
+    
+    @session_id.setter
+    def session_id(self, value: Optional[str]):
+        self._session_id = value
+    
+    @property
+    def task_id(self) -> Optional[str]:
+        return self._task_id
+    
+    @task_id.setter
+    def task_id(self, value: Optional[str]):
+        self._task_id = value
+    
     def _update_file_path(self):
         """Update file path based on current agent_type."""
         # Determine file path based on agent type (one file per agent type)
@@ -181,9 +201,12 @@ class LLMJsonDatasetLogger:
                 for line in f:
                     if line.strip():
                         record = json.loads(line)
-                        # Check if this record is for our agent instance
+                        # Check if this record is for our agent instance and same task
                         record_agent_id = record.get("_agent_id") or record.get("agent_id")
-                        if record_agent_id == self._agent_id:
+                        record_task_id = record.get("_task_id")
+                        
+                        # Match by agent_id and task_id if both are set
+                        if record_agent_id == self._agent_id and (not self._task_id or record_task_id == self._task_id):
                             # Rebuild thread tracking
                             messages = record.get("messages", [])
                             if messages:
@@ -229,17 +252,20 @@ class LLMJsonDatasetLogger:
     
     def _compute_thread_id(self, messages: list[dict] = None) -> str:
         """
-        Compute a thread ID based on agent_type and agent_id.
-        All conversations from the same agent instance share the same thread ID.
+        Compute a thread ID based on agent_type, agent_id, session_id, and task_id.
+        Each unique combination gets its own thread to prevent overwriting trajectories
+        when agents are reused across different tasks.
         
         Args:
             messages: Not used, kept for API compatibility
         """
-        # Use agent_type and agent_id as the thread identifier
-        # This ensures all conversations from the same agent instance are treated as one thread
+        # Use agent_type, agent_id, session_id, and task_id as the thread identifier
+        # This ensures each task gets its own trajectory even when reusing the same agent
         agent_type = self._agent_type or "unknown"
         agent_id = self._agent_id or "unknown"
-        thread_key = f"{agent_type}_{agent_id}"
+        session_id = self._session_id or "no_session"
+        task_id = self._task_id or "no_task"
+        thread_key = f"{agent_type}_{agent_id}_{session_id}_{task_id}"
         return hashlib.sha256(thread_key.encode()).hexdigest()[:16]
 
     def log_conversation(
@@ -350,10 +376,12 @@ class LLMJsonDatasetLogger:
                 return
             
             # Build Qwen3 record with agent tracking info
-            # The _agent_id field is for internal tracking only, can be ignored during training
+            # The _agent_id, _session_id, _task_id fields are for internal tracking only, can be ignored during training
             record = {
                 "messages": qwen_messages,
-                "_agent_id": self._agent_id  # Internal tracking field
+                "_agent_id": self._agent_id,  # Internal tracking field
+                "_session_id": self._session_id,  # Track which session this belongs to
+                "_task_id": self._task_id  # Track which task this belongs to
             }
             
             # For multi-turn conversations, we need to rewrite the file
@@ -394,10 +422,19 @@ class LLMJsonDatasetLogger:
                         try:
                             record = json.loads(line)
                             
-                            # Check if this record is from the same agent instance
-                            # (by comparing _agent_id)
+                            # Check if this record is from the same agent instance and task
+                            # (by comparing _agent_id, _session_id, and _task_id)
                             record_agent_id = record.get("_agent_id")
-                            if record_agent_id == self._agent_id and not replaced:
+                            record_session_id = record.get("_session_id")
+                            record_task_id = record.get("_task_id")
+                            
+                            # Match if agent_id matches AND (no task tracking OR task/session match)
+                            is_same_instance = (
+                                record_agent_id == self._agent_id and
+                                (not self._task_id or (record_session_id == self._session_id and record_task_id == self._task_id))
+                            )
+                            
+                            if is_same_instance and not replaced:
                                 # Replace with new record (only replace first occurrence)
                                 existing_records.append(new_record)
                                 replaced = True
